@@ -1,0 +1,96 @@
+<Window x:Class="Kill.CleanupReviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="复核残留 - Kill" Width="920" Height="640" MinWidth="780" MinHeight="520"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="24,20">
+            <StackPanel>
+                <TextBlock Text="复核残留项目" FontSize="22" FontWeight="SemiBold" />
+                <TextBlock x:Name="SubtitleText" Margin="0,5,0,0" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="22,16,22,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock x:Name="SelectedCountText" FontWeight="SemiBold" />
+                <TextBlock Text="  ·  可移入隔离区，或选择不可恢复的直接清理" Foreground="{StaticResource MutedTextBrush}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Style="{StaticResource QuietButton}" Content="仅选低风险" Click="SelectLowButton_Click" Margin="0,0,2,0" />
+                <Button Style="{StaticResource QuietButton}" Content="清除选择" Click="ClearButton_Click" />
+            </StackPanel>
+        </Grid>
+
+        <DataGrid x:Name="CandidatesGrid" Grid.Row="2" Margin="22,0" AutoGenerateColumns="False"
+                  CanUserAddRows="False" CanUserDeleteRows="False" CanUserReorderColumns="False"
+                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeaderWidth="0"
+                  BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                  Background="White" AlternatingRowBackground="#FAFBFC" RowHeight="56"
+                  SelectionMode="Single">
+            <DataGrid.Resources>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="#F0F2F4" />
+                    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="Padding" Value="10,8" />
+                    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                </Style>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Padding" Value="9,6" />
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                </Style>
+            </DataGrid.Resources>
+            <DataGrid.Columns>
+                <DataGridCheckBoxColumn Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="44" />
+                <DataGridTextColumn Header="类型" Binding="{Binding KindLabel}" Width="80" IsReadOnly="True" />
+                <DataGridTemplateColumn Header="目标" Width="*" IsReadOnly="True">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <TextBlock Text="{Binding DisplayTarget}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Reason}" TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource MutedTextBrush}" FontSize="12" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="风险" Width="90" IsReadOnly="True">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource PillText}" HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding RiskLabel}" FontSize="12" />
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <Border Grid.Row="3" Margin="0,18,0,0" Padding="22,14" Background="White"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <Grid>
+                <TextBlock Text="直接清理不可恢复，执行前必须再次确认。"
+                           Foreground="{StaticResource WarningBrush}" VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Style="{StaticResource SecondaryButton}" Content="取消" Margin="0,0,9,0" IsCancel="True" />
+                    <Button x:Name="ExecuteButton" Style="{StaticResource SafeButton}" Content="移入隔离区"
+                            Margin="0,0,9,0" Click="ExecuteButton_Click" />
+                    <Button x:Name="DirectCleanupButton" Style="{StaticResource PrimaryButton}" Content="直接清理"
+                            Click="DirectCleanupButton_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

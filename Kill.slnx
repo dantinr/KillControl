@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Kill.SelfTest/Kill.SelfTest.csproj" />
+  <Project Path="Kill/Kill.csproj" />
+</Solution>
