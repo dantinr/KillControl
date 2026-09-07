@@ -9,9 +9,57 @@
     <AssemblyName>Kill</AssemblyName>
     <RootNamespace>Kill</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.0.0</Version>
+    <VersionFile>$(MSBuildProjectDirectory)\..\VERSION</VersionFile>
+    <VersionPrefix Condition="Exists('$(VersionFile)')">$([System.IO.File]::ReadAllText('$(VersionFile)').Trim())</VersionPrefix>
+    <VersionPrefix Condition="'$(VersionPrefix)' == ''">0.0.0</VersionPrefix>
+    <Version>$(VersionPrefix)</Version>
+    <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
+    <FileVersion>$(VersionPrefix).0</FileVersion>
+    <InformationalVersion>$(VersionPrefix)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Product>Kill Control</Product>
+    <AssemblyTitle>Kill Control</AssemblyTitle>
     <Authors>Kill</Authors>
-    <Description>安全、透明的 Windows 应用卸载与残留清理工具</Description>
+    <Description>安全、透明的 Windows 应用卸载、服务管理与资源监控工具</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(VersionFile)" Link="VERSION" Condition="Exists('$(VersionFile)')"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <UpToDateCheckInput Include="$(VersionFile)" Condition="Exists('$(VersionFile)')" />
+  </ItemGroup>
+
+  <Target Name="ValidateVersionFile" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(VersionFile)')" Text="缺少版本文件：$(VersionFile)" />
+    <Error Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(VersionPrefix)', '^[0-9]+\.[0-9]+\.[1-9][0-9]$')) != 'True'"
+           Text="VERSION 必须使用 x.x.xx 格式，末段范围为 10 到 99。当前值：$(VersionPrefix)" />
+  </Target>
+
+  <Target Name="CreateVersionedBuildExecutable" AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(UseAppHost)' == 'true'">
+    <PropertyGroup>
+      <_BuiltAppHost>$(TargetDir)$(AssemblyName)$(_NativeExecutableExtension)</_BuiltAppHost>
+      <_VersionedBuildAppHost>$(TargetDir)$(AssemblyName)-v$(VersionPrefix)$(_NativeExecutableExtension)</_VersionedBuildAppHost>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(_BuiltAppHost)')" Text="找不到构建程序：$(_BuiltAppHost)" />
+    <Copy SourceFiles="$(_BuiltAppHost)" DestinationFiles="$(_VersionedBuildAppHost)" />
+    <Message Importance="High" Text="已生成版本化程序：$(_VersionedBuildAppHost)" />
+  </Target>
+
+  <Target Name="CreateVersionedPublishExecutable" AfterTargets="Publish"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(UseAppHost)' == 'true'">
+    <PropertyGroup>
+      <_PublishedAppHost Condition="'$(PublishSingleFile)' == 'true'">$(PublishedSingleFilePath)</_PublishedAppHost>
+      <_PublishedAppHost Condition="'$(_PublishedAppHost)' == ''">$(PublishDir)$(AssemblyName)$(_NativeExecutableExtension)</_PublishedAppHost>
+      <_VersionedPublishedAppHost>$(PublishDir)$(AssemblyName)-v$(VersionPrefix)$(_NativeExecutableExtension)</_VersionedPublishedAppHost>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(_PublishedAppHost)')" Text="找不到发布程序：$(_PublishedAppHost)" />
+    <Copy SourceFiles="$(_PublishedAppHost)" DestinationFiles="$(_VersionedPublishedAppHost)" />
+    <Message Importance="High" Text="已生成版本化发布程序：$(_VersionedPublishedAppHost)" />
+  </Target>
 
 </Project>

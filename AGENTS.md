@@ -44,6 +44,7 @@ Kill Control must remain conservative, transparent, and recoverable wherever rec
 - Automated tests must be read-only against the host machine.
 - Never uninstall an application, delete residue, stop a real service, change a real service start mode, or delete a service during tests.
 - Use synthetic paths and model objects for mutation-path unit tests.
+- Resource-monitor persistence tests must inject a unique temporary database path and clean up only that test-owned directory.
 - Local UI verification may enumerate applications and services and open detail views, but must not confirm a destructive dialog.
 
 ## Architecture Guide
@@ -54,10 +55,28 @@ Kill Control must remain conservative, transparent, and recoverable wherever rec
 - `CleanupCoordinator` and `CleanupWorker`: marshal cleanup/restore work through UAC and perform final validation.
 - `ServiceDiscoveryService` and `ServiceSafetyPolicy`: enumerate and classify Windows services.
 - `ServiceActionCoordinator` and `ServiceActionWorker`: marshal service actions through UAC and execute them after revalidation.
+- `ResourceMetricsSampler`: reads system-wide CPU, physical memory, disk I/O, and network counters without modifying host state.
+- `ProcessResourceSampler`: reads per-process CPU, working set, and Windows process I/O counters for the live Top 10 without modifying host state.
+- `ResourceMonitorRepository`: owns the local SQLite schema and resource-monitor history operations.
+- `ResourceTrendChart`: renders lightweight system-resource trend lines from the recent in-memory sample window.
 - `KillPaths`: owns persistent and temporary path conventions. Do not duplicate these paths in feature code.
 - `ConfirmationWindow`: shared risk confirmation UI. Service actions should use the internal service name as the typed confirmation value.
 
 Keep UI code in the WPF windows, system discovery and mutation logic in `Services/`, and transport models in `Models/`. Reuse existing styles in `Kill/Themes/Styles.xaml`.
+
+Resource monitoring must remain opt-in and scoped to the lifetime of the resource-monitor window. Do not turn it into a hidden startup task or service without an explicit product change. Its database belongs in `<program directory>\data`; never commit local database files.
+
+Process rankings are live, read-only data and are not persisted. Label `GetProcessIoCounters` values as process I/O, not disk-only or network throughput. Do not claim per-process network monitoring unless a separate, reliable data source is implemented and verified.
+
+## Versioning
+
+- `VERSION` at the repository root is the only product-version source. Do not hard-code a separate product version in C# or project files.
+- Versions use `x.x.xx`; the final component ranges from `10` through `99`.
+- After `x.y.99`, increment the middle component and reset the final component to `10` (for example, `1.2.99` becomes `1.3.10`).
+- Keep `VERSION` copied beside build and publish output so the packaged value can be inspected directly.
+- Build and publish must preserve the canonical `Kill.exe` entry point and also create `Kill-v<version>.exe`. Do not rename the `Kill` assembly to implement versioned output.
+- Versioned output names are derived from `VERSION`; changing the version creates a new file name and must not delete older versioned artifacts.
+- A normal Build apphost still depends on the DLLs beside it and is not a standalone historical archive. Use a version-specific directory and the self-contained single-file Publish output when preserving runnable older versions.
 
 ## Required Verification
 

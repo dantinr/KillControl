@@ -1,6 +1,6 @@
 # Kill Control
 
-Kill Control 是一款面向 Windows 的应用卸载、残留复核和后台服务管理工具，使用 Visual Studio 2026、.NET 10 和 WPF 开发。程序文件仍使用 `Kill.exe`，产品名称为 **Kill Control**。
+Kill Control 是一款面向 Windows 的应用卸载、残留复核、后台服务管理和资源监控工具，使用 Visual Studio 2026、.NET 10 和 WPF 开发。程序文件仍使用 `Kill.exe`，产品名称为 **Kill Control**；当前版本号由仓库根目录的 `VERSION` 文件统一管理，并显示在程序主界面和窗口标题中。
 
 ## 核心功能
 
@@ -29,6 +29,24 @@ Kill Control 是一款面向 Windows 的应用卸载、残留复核和后台服�
 .\Kill.exe --services
 ```
 
+### 资源监控
+
+- 可组合选择 CPU、物理内存、硬盘 I/O 和网络吞吐量。
+- 支持 5 秒、30 秒、1 分钟、3 分钟和 5 分钟采样间隔。
+- 支持不限时、30 分钟和 60 分钟监控时长；达到时长后自动结束并保存会话。
+- 当前值与最近 200 条记录显示在监控窗口中，完整历史保存在本地 SQLite 数据库。
+- 趋势统计显示最近 120 个样本的 CPU、内存、硬盘读写和网络收发曲线，并在启动时恢复本地历史记录。
+- 进程 Top 10 可按 CPU 使用率、工作集或进程 I/O 吞吐量排序；排名显示最后采样时间，随监控采样刷新，不写入历史数据库。
+- Top 10 的 I/O 来自 Windows 进程 I/O 计数器，不等同于单个进程的网络吞吐量；网络曲线仍是系统总量。
+- 监控仅在资源监控窗口打开并点击“开始监控”后运行，不安装后台服务，也不在程序退出后继续采样。
+- 支持清空全部历史监控数据；该操作需要输入“清空”二次确认。
+
+可从主窗口进入“资源监控”，也可以直接运行：
+
+```powershell
+.\Kill.exe --resources
+```
+
 ## 安全边界
 
 不存在能够对任意 Windows 软件保证“完美卸载、零残留、零影响”的通用算法。便携软件、未登记的软件、其他 Windows 用户的商店包，以及多个程序共用的组件，都无法可靠地自动归属。
@@ -51,6 +69,7 @@ Kill Control 因此采用保守策略：
 | 系统盘隔离文件 | `%ProgramData%\Kill\Quarantine` |
 | 服务注册表备份 | `%ProgramData%\Kill\ServiceBackups` |
 | 服务黑名单 | `%ProgramData%\Kill\ServiceBlacklist.json` |
+| 资源监控数据库 | `<程序目录>\data\kill-monitor.db` |
 | 其他磁盘隔离文件 | `<磁盘根目录>\Kill Quarantine` |
 
 恢复操作不会覆盖原位置已经存在的内容。其他磁盘使用同卷隔离目录，避免跨卷移动造成额外复制或中断风险。
@@ -60,10 +79,11 @@ Kill Control 因此采用保守策略：
 ```text
 KillControl/
 ├─ Kill/                 WPF 主程序
-│  ├─ Models/            应用、残留和服务数据模型
+│  ├─ Models/            应用、残留、服务和资源监控数据模型
 │  ├─ Services/          枚举、扫描、安全策略和提权工作进程
 │  └─ Themes/            WPF 公共样式
 ├─ Kill.SelfTest/        不修改系统状态的安全自检
+├─ VERSION               唯一版本号来源
 ├─ Kill.slnx             Visual Studio 解决方案
 └─ AGENTS.md             后续开发约束
 ```
@@ -77,6 +97,8 @@ Release 构建：
 ```powershell
 dotnet build .\Kill.slnx -c Release
 ```
+
+编译完成后会保留稳定入口 `Kill.exe`，并在同一输出目录额外生成 `Kill-v<版本号>.exe`。普通 Build 产物仍依赖同目录的 DLL 和运行配置；需要独立保存历史版本时，应使用下面的单文件发布产物。
 
 检查代码格式：
 
@@ -93,7 +115,14 @@ dotnet run --project .\Kill.SelfTest\Kill.SelfTest.csproj -c Release
 生成自包含的 Windows x64 单文件版本：
 
 ```powershell
-dotnet publish .\Kill\Kill.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o .\artifacts\Kill-portable-win-x64
+$version = (Get-Content .\VERSION -Raw).Trim()
+dotnet publish .\Kill\Kill.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o ".\artifacts\Kill-portable-win-x64-v$version"
 ```
 
+每个版本使用独立发布目录，其中同时包含 `Kill.exe`、`Kill-v<版本号>.exe` 和 `VERSION`。两个 EXE 是哈希一致的自包含单文件；更新 `VERSION` 后重新发布不会覆盖其他版本目录。
+
 `artifacts/`、`bin/`、`obj/` 和 Visual Studio 用户文件已由 `.gitignore` 排除。
+
+## 版本管理
+
+`VERSION` 只保存一行 `x.x.xx` 格式的版本号，末段从 `10` 开始并限制在 `10` 到 `99`。末段超过 `99` 时，中间段进位并将末段重置为 `10`，例如 `1.2.99` 的下一版本是 `1.3.10`。构建会校验格式，并把同一个值写入程序集、Windows 文件属性及发布目录中的 `VERSION` 文件。

@@ -15,6 +15,7 @@
 # Published artifacts
 artifacts/
 publish/
+data/
 
 # IDEs and tooling
 .idea/

@@ -19,7 +19,12 @@ public partial class MainWindow : Window
     private ICollectionView? _applicationsView;
     private CancellationTokenSource? _refreshCancellation;
 
-    public MainWindow() => InitializeComponent();
+    public MainWindow()
+    {
+        InitializeComponent();
+        Title = $"Kill Control {ProductInfo.DisplayVersion}";
+        VersionText.Text = ProductInfo.DisplayVersion;
+    }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e) => await RefreshApplicationsAsync();
     private async void RefreshButton_Click(object sender, RoutedEventArgs e) => await RefreshApplicationsAsync();
@@ -202,12 +207,16 @@ public partial class MainWindow : Window
     private void ServicesButton_Click(object sender, RoutedEventArgs e) =>
         new ServiceManagementWindow { Owner = this }.ShowDialog();
 
+    private void ResourceMonitorButton_Click(object sender, RoutedEventArgs e) =>
+        new ResourceMonitorWindow { Owner = this }.ShowDialog();
+
     private void SetBusy(bool isBusy, string? message = null)
     {
         BusyProgress.Visibility = isBusy ? Visibility.Visible : Visibility.Collapsed;
         RefreshButton.IsEnabled = !isBusy;
         HistoryButton.IsEnabled = !isBusy;
         ServicesButton.IsEnabled = !isBusy;
+        ResourceMonitorButton.IsEnabled = !isBusy;
         if (message is not null) SetStatus(message);
     }
 

@@ -47,6 +47,12 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Length >= 1 && e.Args[0].Equals("--resources", StringComparison.OrdinalIgnoreCase))
+        {
+            new ResourceMonitorWindow { ShowInTaskbar = true }.Show();
+            return;
+        }
+
         new MainWindow().Show();
     }
 

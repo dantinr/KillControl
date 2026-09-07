@@ -12,4 +12,6 @@ public static class KillPaths
     public static string HistoryRoot => Path.Combine(CommonRoot, "History");
     public static string QuarantineRoot => Path.Combine(CommonRoot, "Quarantine");
     public static string ServiceBackupRoot => Path.Combine(CommonRoot, "ServiceBackups");
+    public static string ResourceDataRoot => Path.Combine(AppContext.BaseDirectory, "data");
+    public static string ResourceDatabasePath => Path.Combine(ResourceDataRoot, "kill-monitor.db");
 }

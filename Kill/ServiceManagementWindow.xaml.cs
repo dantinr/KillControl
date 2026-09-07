@@ -19,7 +19,11 @@ public partial class ServiceManagementWindow : Window
     private CancellationTokenSource? _refreshCancellation;
     private bool _isBusy;
 
-    public ServiceManagementWindow() => InitializeComponent();
+    public ServiceManagementWindow()
+    {
+        InitializeComponent();
+        Title = $"Kill Control {ProductInfo.DisplayVersion} - 服务管理";
+    }
 
     private ManagedService? SelectedService => ServicesList.SelectedItem as ManagedService;
 
