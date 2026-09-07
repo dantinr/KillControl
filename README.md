@@ -98,7 +98,7 @@ Release 构建：
 dotnet build .\Kill.slnx -c Release
 ```
 
-编译完成后会保留稳定入口 `Kill.exe`，并在同一输出目录额外生成 `Kill-v<版本号>.exe`。普通 Build 产物仍依赖同目录的 DLL 和运行配置；需要独立保存历史版本时，应使用下面的单文件发布产物。
+编译结果统一写入仓库根目录的 `Releases\`。其中保留稳定入口 `Kill.exe`，并额外生成 `Kill-v<版本号>.exe`；Debug 构建仍使用项目默认的 `bin\Debug\`。普通 Build 生成的两个 EXE 都依赖 `Releases\` 中当前的 `Kill.dll` 和运行配置，需要独立保存历史版本时，应使用下面的单文件发布产物。
 
 检查代码格式：
 
@@ -116,12 +116,14 @@ dotnet run --project .\Kill.SelfTest\Kill.SelfTest.csproj -c Release
 
 ```powershell
 $version = (Get-Content .\VERSION -Raw).Trim()
-dotnet publish .\Kill\Kill.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o ".\artifacts\Kill-portable-win-x64-v$version"
+dotnet publish .\Kill\Kill.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o ".\Releases\Kill-portable-win-x64-v$version"
 ```
 
 每个版本使用独立发布目录，其中同时包含 `Kill.exe`、`Kill-v<版本号>.exe` 和 `VERSION`。两个 EXE 是哈希一致的自包含单文件；更新 `VERSION` 后重新发布不会覆盖其他版本目录。
 
-`artifacts/`、`bin/`、`obj/` 和 Visual Studio 用户文件已由 `.gitignore` 排除。
+`Releases/`、`artifacts/`、`bin/`、`obj/` 和 Visual Studio 用户文件已由 `.gitignore` 排除。
+
+直接运行 `Releases\Kill.exe` 时，资源监控数据库位于 `Releases\data\`。清理构建目录前，如需保留历史监控记录，应先备份该目录。
 
 ## 版本管理
 

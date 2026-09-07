@@ -76,6 +76,7 @@ Process rankings are live, read-only data and are not persisted. Label `GetProce
 - Keep `VERSION` copied beside build and publish output so the packaged value can be inspected directly.
 - Build and publish must preserve the canonical `Kill.exe` entry point and also create `Kill-v<version>.exe`. Do not rename the `Kill` assembly to implement versioned output.
 - Versioned output names are derived from `VERSION`; changing the version creates a new file name and must not delete older versioned artifacts.
+- Release builds write directly to the repository-root `Releases/` directory; Debug builds keep the SDK default under `bin/Debug/`.
 - A normal Build apphost still depends on the DLLs beside it and is not a standalone historical archive. Use a version-specific directory and the self-contained single-file Publish output when preserving runnable older versions.
 
 ## Required Verification
@@ -90,7 +91,7 @@ dotnet run --project .\Kill.SelfTest\Kill.SelfTest.csproj -c Release --no-build
 
 For WPF layout changes, launch the Release build and verify the affected window at the minimum supported size. Confirm that long service names and paths wrap or trim without overlapping controls. Do not use a live destructive action as UI verification.
 
-For release packaging, use the publish command documented in `README.md`. Published output belongs in `artifacts/` and must not be committed.
+For release packaging, use the publish command documented in `README.md`. Build and publish outputs belong in `Releases/` and must not be committed.
 
 ## Editing and Git Hygiene
 
