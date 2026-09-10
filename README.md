@@ -83,7 +83,10 @@ KillControl/
 │  ├─ Services/          枚举、扫描、安全策略和提权工作进程
 │  └─ Themes/            WPF 公共样式
 ├─ Kill.SelfTest/        不修改系统状态的安全自检
+├─ third-party/          版本锁定的上游第三方声明
 ├─ VERSION               唯一版本号来源
+├─ LICENSE               Apache License 2.0 全文
+├─ THIRD_PARTY.md        第三方依赖及许可证声明
 ├─ Kill.slnx             Visual Studio 解决方案
 └─ AGENTS.md             后续开发约束
 ```
@@ -119,7 +122,7 @@ $version = (Get-Content .\VERSION -Raw).Trim()
 dotnet publish .\Kill\Kill.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o ".\Releases\Kill-portable-win-x64-v$version"
 ```
 
-每个版本使用独立发布目录，其中同时包含 `Kill.exe`、`Kill-v<版本号>.exe` 和 `VERSION`。两个 EXE 是哈希一致的自包含单文件；更新 `VERSION` 后重新发布不会覆盖其他版本目录。
+每个版本使用独立发布目录，其中同时包含 `Kill.exe`、`Kill-v<版本号>.exe`、`VERSION`、`LICENSE`、`THIRD_PARTY.md` 和 `third-party\` 中的版本锁定声明。两个 EXE 是哈希一致的自包含单文件；更新 `VERSION` 后重新发布不会覆盖其他版本目录。
 
 `Releases/`、`artifacts/`、`bin/`、`obj/` 和 Visual Studio 用户文件已由 `.gitignore` 排除。
 
@@ -128,3 +131,7 @@ dotnet publish .\Kill\Kill.csproj -c Release -r win-x64 --self-contained true -p
 ## 版本管理
 
 `VERSION` 只保存一行 `x.x.xx` 格式的版本号，末段从 `10` 开始并限制在 `10` 到 `99`。末段超过 `99` 时，中间段进位并将末段重置为 `10`，例如 `1.2.99` 的下一版本是 `1.3.10`。构建会校验格式，并把同一个值写入程序集、Windows 文件属性及发布目录中的 `VERSION` 文件。
+
+## 开源协议
+
+Kill Control 采用 [Apache License 2.0](LICENSE) 开源。第三方组件继续适用各自的许可证或权利声明，完整清单见 [THIRD_PARTY.md](THIRD_PARTY.md)。`LICENSE`、`THIRD_PARTY.md` 与 `third-party/` 中的版本锁定上游声明会自动复制到 Release 构建和发布目录。

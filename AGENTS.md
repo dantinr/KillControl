@@ -79,6 +79,14 @@ Process rankings are live, read-only data and are not persisted. Label `GetProce
 - Release builds write directly to the repository-root `Releases/` directory; Debug builds keep the SDK default under `bin/Debug/`.
 - A normal Build apphost still depends on the DLLs beside it and is not a standalone historical archive. Use a version-specific directory and the self-contained single-file Publish output when preserving runnable older versions.
 
+## Licensing
+
+- Kill Control is licensed under Apache License 2.0. Keep the root `LICENSE` file as the unmodified standard license text.
+- Record every direct and resolved transitive application dependency distributed with the app, its pinned version, license, and upstream source in `THIRD_PARTY.md`.
+- Recheck `THIRD_PARTY.md` whenever a package, target framework, SDK, or self-contained runtime version changes.
+- Keep version-pinned upstream runtime notices under `third-party/`; do not replace them with links to a moving branch.
+- Keep `LICENSE`, `THIRD_PARTY.md`, and the applicable files under `third-party/` copied into build and publish output; do not remove them from distributable packages.
+
 ## Required Verification
 
 Run these from the repository root after relevant changes:

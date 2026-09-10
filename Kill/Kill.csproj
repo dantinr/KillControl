@@ -21,6 +21,11 @@
     <AssemblyTitle>Kill Control</AssemblyTitle>
     <Authors>Kill</Authors>
     <Description>安全、透明的 Windows 应用卸载、服务管理与资源监控工具</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <LicenseFile>$(MSBuildProjectDirectory)\..\LICENSE</LicenseFile>
+    <ThirdPartyNoticesFile>$(MSBuildProjectDirectory)\..\THIRD_PARTY.md</ThirdPartyNoticesFile>
+    <DotNetRuntimeNoticesFile>$(MSBuildProjectDirectory)\..\third-party\dotnet-runtime-10.0.11-THIRD-PARTY-NOTICES.txt</DotNetRuntimeNoticesFile>
+    <WpfNoticesFile>$(MSBuildProjectDirectory)\..\third-party\wpf-10.0.11-THIRD-PARTY-NOTICES.txt</WpfNoticesFile>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
@@ -36,7 +41,21 @@
   <ItemGroup>
     <None Include="$(VersionFile)" Link="VERSION" Condition="Exists('$(VersionFile)')"
           CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(LicenseFile)" Link="LICENSE" Condition="Exists('$(LicenseFile)')"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(ThirdPartyNoticesFile)" Link="THIRD_PARTY.md" Condition="Exists('$(ThirdPartyNoticesFile)')"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(DotNetRuntimeNoticesFile)" Link="third-party\dotnet-runtime-10.0.11-THIRD-PARTY-NOTICES.txt"
+          Condition="Exists('$(DotNetRuntimeNoticesFile)')"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(WpfNoticesFile)" Link="third-party\wpf-10.0.11-THIRD-PARTY-NOTICES.txt"
+          Condition="Exists('$(WpfNoticesFile)')"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <UpToDateCheckInput Include="$(VersionFile)" Condition="Exists('$(VersionFile)')" />
+    <UpToDateCheckInput Include="$(LicenseFile)" Condition="Exists('$(LicenseFile)')" />
+    <UpToDateCheckInput Include="$(ThirdPartyNoticesFile)" Condition="Exists('$(ThirdPartyNoticesFile)')" />
+    <UpToDateCheckInput Include="$(DotNetRuntimeNoticesFile)" Condition="Exists('$(DotNetRuntimeNoticesFile)')" />
+    <UpToDateCheckInput Include="$(WpfNoticesFile)" Condition="Exists('$(WpfNoticesFile)')" />
   </ItemGroup>
 
   <Target Name="ValidateVersionFile" BeforeTargets="PrepareForBuild">
