@@ -6,12 +6,14 @@ using System.Windows.Data;
 using System.Windows.Media;
 using Kill.Models;
 using Kill.Services;
+using Microsoft.Win32;
 
 namespace Kill;
 
 public partial class MainWindow : Window
 {
     private readonly ApplicationDiscoveryService _discoveryService = new();
+    private readonly InstallDirectoryIdentificationService _directoryIdentificationService = new();
     private readonly UninstallService _uninstallService = new();
     private readonly ResidueScanner _residueScanner = new();
     private readonly CleanupCoordinator _cleanupCoordinator = new();
@@ -112,14 +114,74 @@ public partial class MainWindow : Window
     private async void UninstallButton_Click(object sender, RoutedEventArgs e)
     {
         var application = SelectedApplication;
-        if (application is null) return;
+        if (application is not null) await RunUninstallAsync(application);
+    }
+
+    private async void IdentifyDirectoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var folderDialog = new OpenFolderDialog
+        {
+            Title = "选择软件的安装目录",
+            Multiselect = false
+        };
+        if (folderDialog.ShowDialog(this) != true) return;
+
+        var selectedDirectory = folderDialog.FolderName;
+        if (!Directory.Exists(selectedDirectory))
+        {
+            MessageBox.Show(this, "所选目录已不存在。", "无法识别", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        IReadOnlyList<InstallDirectoryMatch> matches;
+        try
+        {
+            matches = _directoryIdentificationService.FindMatches(selectedDirectory, _applications);
+        }
+        catch (Exception exception)
+        {
+            SetStatus("所选目录不允许用于识别", true);
+            MessageBox.Show(this, exception.Message, "无法识别", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (matches.Count == 0)
+        {
+            SetStatus("没有找到与所选目录明确对应的应用");
+            MessageBox.Show(this,
+                "没有找到安装位置、显示图标或官方卸载器路径与该目录明确对应的桌面应用。Kill 不会根据文件夹名称猜测应用归属。",
+                "未识别到应用", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var matchWindow = new InstallDirectoryMatchWindow(selectedDirectory, matches) { Owner = this };
+        if (matchWindow.ShowDialog() != true || matchWindow.SelectedMatch is not { } selectedMatch) return;
+
+        RevealApplication(selectedMatch.Application);
+        await RunUninstallAsync(selectedMatch.Application, selectedMatch);
+    }
+
+    private void RevealApplication(InstalledApplication application)
+    {
+        SearchBox.Clear();
+        KindFilter.SelectedIndex = 0;
+        ApplicationsList.SelectedItem = application;
+        ApplicationsList.ScrollIntoView(application);
+    }
+
+    private async Task RunUninstallAsync(InstalledApplication application, InstallDirectoryMatch? directoryMatch = null)
+    {
+        var isDirectoryMatch = directoryMatch is not null;
 
         var warning = application.IsProtected
             ? "此应用的安装位置涉及 Windows 保护区域。卸载可能影响系统组件或依赖它的其他程序。"
-            : "Kill 将启动该应用自己登记的官方卸载程序。请在卸载程序中再次核对所选组件。";
+            : isDirectoryMatch
+                ? $"所选目录：{directoryMatch!.DirectoryPath}\n匹配依据：{directoryMatch.EvidenceLabel}\n\nKill 只会启动该应用登记的官方卸载程序。"
+                : "Kill 将启动该应用自己登记的官方卸载程序。请在卸载程序中再次核对所选组件。";
         var confirmation = new ConfirmationWindow(
-            "确认运行官方卸载", $"即将卸载“{application.DisplayName}”", warning,
-            application.IsProtected ? application.DisplayName : null, "继续卸载")
+            isDirectoryMatch ? "确认根据目录卸载" : "确认运行官方卸载",
+            $"即将卸载“{application.DisplayName}”", warning,
+            application.IsProtected || isDirectoryMatch ? application.DisplayName : null, "继续卸载")
         { Owner = this };
         if (confirmation.ShowDialog() != true) return;
 
@@ -138,9 +200,15 @@ public partial class MainWindow : Window
 
             var scanConfirmation = new ConfirmationWindow(
                 "官方卸载已结束", "是否检查剩余文件和注册表项？",
-                "扫描是只读操作。找到的项目会先展示，不会自动清理。", null, "开始扫描")
+                directoryMatch?.CanUseSelectedDirectoryForCleanup == true
+                    ? "扫描是只读操作。所选目录会作为高风险候选展示且默认不选中，不会自动清理。"
+                    : "扫描是只读操作。找到的项目会先展示，不会自动清理。",
+                null, "开始扫描")
             { Owner = this };
-            if (scanConfirmation.ShowDialog() == true) await ScanAndReviewAsync(application);
+            var verifiedDirectory = directoryMatch?.CanUseSelectedDirectoryForCleanup == true
+                ? directoryMatch.DirectoryPath
+                : null;
+            if (scanConfirmation.ShowDialog() == true) await ScanAndReviewAsync(application, verifiedDirectory);
             await RefreshApplicationsAsync();
         }
         finally
@@ -156,13 +224,13 @@ public partial class MainWindow : Window
         if (application is not null) await ScanAndReviewAsync(application);
     }
 
-    private async Task ScanAndReviewAsync(InstalledApplication application)
+    private async Task ScanAndReviewAsync(InstalledApplication application, string? verifiedInstallDirectory = null)
     {
         SetBusy(true, $"正在扫描 {application.DisplayName} 的可确认残留…");
         ScanButton.IsEnabled = false;
         try
         {
-            var candidates = await _residueScanner.ScanAsync(application);
+            var candidates = await _residueScanner.ScanAsync(application, verifiedInstallDirectory);
             if (candidates.Count == 0)
             {
                 SetStatus("未发现可明确归属的残留");
@@ -217,6 +285,7 @@ public partial class MainWindow : Window
         HistoryButton.IsEnabled = !isBusy;
         ServicesButton.IsEnabled = !isBusy;
         ResourceMonitorButton.IsEnabled = !isBusy;
+        IdentifyDirectoryButton.IsEnabled = !isBusy;
         if (message is not null) SetStatus(message);
     }
 

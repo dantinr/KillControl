@@ -23,6 +23,64 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("拒绝宽泛名称匹配", () => CheckAsync(
         !SafetyPolicy.IsStrongNameMatch("App", "Application Suite"),
         "残留扫描不得使用模糊包含匹配")),
+    ("安装目录精确反向识别", () =>
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "KillSelfTest", "Example Product");
+        var application = TestApplication("Example Product", installLocation: directory);
+        var matches = new InstallDirectoryIdentificationService().FindMatches(directory, [application]);
+        return CheckAsync(matches.Count == 1 && matches[0].Application == application &&
+                          matches[0].CanUseSelectedDirectoryForCleanup &&
+                          matches[0].Evidence.Contains("安装登记位置完全一致"),
+            "登记安装位置完全一致时应识别应用并允许将目录加入高风险复核");
+    }),
+    ("安装目录路径证据识别", () =>
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "KillSelfTest", "Icon Product");
+        var application = TestApplication("Icon Product",
+            displayIcon: $"\"{Path.Combine(directory, "product.exe")}\",0");
+        var matches = new InstallDirectoryIdentificationService().FindMatches(directory, [application]);
+        return CheckAsync(matches.Count == 1 && matches[0].CanUseSelectedDirectoryForCleanup &&
+                          matches[0].Evidence.Any(item => item.Contains("显示图标直接位于", StringComparison.Ordinal)),
+            "显示图标直接位于所选目录时应形成强路径证据");
+    }),
+    ("共享安装目录禁止整体清理", () =>
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "KillSelfTest", "Shared Vendor");
+        var matches = new InstallDirectoryIdentificationService().FindMatches(directory,
+            [TestApplication("Product A", installLocation: directory), TestApplication("Product B", installLocation: directory)]);
+        return CheckAsync(matches.Count == 2 && matches.All(match => !match.CanUseSelectedDirectoryForCleanup),
+            "多个应用命中同一目录时不得把该目录作为整体清理候选");
+    }),
+    ("深层目录证据只用于识别", () =>
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "KillSelfTest", "Vendor Root");
+        var iconPath = Path.Combine(directory, "Product", "product.exe");
+        var matches = new InstallDirectoryIdentificationService().FindMatches(directory,
+            [TestApplication("Nested Product", displayIcon: $"\"{iconPath}\",0")]);
+        return CheckAsync(matches.Count == 1 && !matches[0].CanUseSelectedDirectoryForCleanup,
+            "仅命中深层子目录时可识别应用，但不得整体清理上层目录");
+    }),
+    ("拒绝受保护目录识别", () =>
+    {
+        try
+        {
+            _ = new InstallDirectoryIdentificationService().FindMatches(
+                Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+                [TestApplication("Unsafe Product")]);
+            return CheckAsync(false, "Windows 目录不应进入安装目录识别流程");
+        }
+        catch (InvalidOperationException)
+        {
+            return CheckAsync(true, "");
+        }
+    }),
+    ("目录名称不得替代路径证据", () =>
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "KillSelfTest", "Same Name Product");
+        var matches = new InstallDirectoryIdentificationService().FindMatches(directory,
+            [TestApplication("Same Name Product")]);
+        return CheckAsync(matches.Count == 0, "仅文件夹名称与应用名称相同不得形成匹配");
+    }),
     ("Windows 命令行解析", () => CheckAsync(
         WindowsCommandLine.Split("\"C:\\Program Files\\Example\\uninstall.exe\" /remove \"user data\"")
             .SequenceEqual([@"C:\Program Files\Example\uninstall.exe", "/remove", "user data"]),
@@ -126,6 +184,17 @@ var tests = new List<(string Name, Func<Task> Run)>
             throw new InvalidOperationException("枚举结果包含空名称");
         if (!applications.Any(app => app.Kind == Kill.Models.ApplicationKind.Desktop))
             throw new InvalidOperationException("没有读取到桌面应用");
+        var pathCandidate = applications.FirstOrDefault(app => app.Kind == ApplicationKind.Desktop &&
+                                                               Directory.Exists(app.InstallLocation) &&
+                                                               SafetyPolicy.IsPathSafeToQuarantine(app.InstallLocation));
+        if (pathCandidate is not null)
+        {
+            var matches = new InstallDirectoryIdentificationService()
+                .FindMatches(pathCandidate.InstallLocation, applications);
+            if (!matches.Any(match => match.Application.Id == pathCandidate.Id))
+                throw new InvalidOperationException("未能按真实安装目录反向识别对应应用");
+            Console.WriteLine($"      安装目录识别到 {matches.Count} 个候选应用");
+        }
         Console.WriteLine($"      只读枚举到 {applications.Count} 个应用");
     }),
     ("本机服务只读枚举", async () =>
@@ -368,6 +437,19 @@ static Task CheckAsync(bool condition, string message)
     if (!condition) throw new InvalidOperationException(message);
     return Task.CompletedTask;
 }
+
+static InstalledApplication TestApplication(string name, string installLocation = "", string displayIcon = "") => new()
+{
+    Id = $"test:{name}",
+    DisplayName = name,
+    Publisher = "Example Corp",
+    InstallLocation = installLocation,
+    DisplayIcon = displayIcon,
+    UninstallCommand = "msiexec.exe /X {00000000-0000-0000-0000-000000000000}",
+    Kind = ApplicationKind.Desktop,
+    Scope = InstallScope.AllUsers,
+    CanUninstall = true
+};
 
 sealed class NonPumpingSynchronizationContext : SynchronizationContext
 {

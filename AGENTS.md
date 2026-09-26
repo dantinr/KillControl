@@ -24,6 +24,8 @@ Kill Control must remain conservative, transparent, and recoverable wherever rec
 - Never recursively scan or delete an entire drive.
 - Never clean a drive root, Windows, System32, Common Files, WindowsApps, or shared runtime locations.
 - Residue matching must remain exact and attributable. Do not replace the current normalized exact-name checks with broad substring or fuzzy matching.
+- Directory-based identification may use only registered install locations, display icons, and official uninstaller paths. Never infer ownership from a folder name alone.
+- If multiple applications match one selected directory, or evidence exists only below a nested child directory, the selected directory must not become a whole-directory cleanup candidate.
 - Revalidate every selected path and registry key in the elevated worker. The UI result is not a security boundary.
 - Cleanup request and response files must remain constrained to Kill Control's own temporary directory.
 - Restore must not overwrite content that already exists at the original location.
@@ -50,6 +52,7 @@ Kill Control must remain conservative, transparent, and recoverable wherever rec
 ## Architecture Guide
 
 - `ApplicationDiscoveryService`: reads desktop and current-user Store application registrations.
+- `InstallDirectoryIdentificationService`: matches a user-selected directory only against registered install locations, display icons, and official uninstaller paths.
 - `UninstallService`: resolves and launches registered uninstall commands.
 - `ResidueScanner` and `SafetyPolicy`: produce conservative cleanup candidates.
 - `CleanupCoordinator` and `CleanupWorker`: marshal cleanup/restore work through UAC and perform final validation.

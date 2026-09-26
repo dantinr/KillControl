@@ -1,0 +1,129 @@
+<Window x:Class="Kill.InstallDirectoryMatchWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="根据安装目录识别 - Kill Control" Width="780" Height="570"
+        MinWidth="680" MinHeight="500" WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="92" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="72" />
+        </Grid.RowDefinitions>
+
+        <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid Margin="24,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="52" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Width="40" Height="40" CornerRadius="6" Background="{StaticResource AccentSoftBrush}"
+                        HorizontalAlignment="Left" VerticalAlignment="Center">
+                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons" FontSize="19"
+                               Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="选择识别出的应用" FontSize="21" FontWeight="SemiBold" />
+                    <TextBlock x:Name="DirectoryPathText" Margin="0,5,0,0" FontSize="12"
+                               Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="24,20,24,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Background="{StaticResource WarningSoftBrush}" BorderBrush="#F1D7A8"
+                    BorderThickness="1" CornerRadius="6" Padding="13">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="27" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="&#xE7BA;" FontFamily="Segoe Fluent Icons" FontSize="16"
+                               Foreground="{StaticResource WarningBrush}" />
+                    <TextBlock Grid.Column="1" Foreground="#795C2E" TextWrapping="Wrap"
+                               Text="这里只会运行应用登记的官方卸载器。多个应用命中同一目录时，目录不会作为整体残留清理。" />
+                </Grid>
+            </Border>
+
+            <TextBlock x:Name="MatchCountText" Grid.Row="1" Margin="0,15,0,8" FontSize="13"
+                       Foreground="{StaticResource MutedTextBrush}" />
+
+            <ListBox x:Name="MatchesList" Grid.Row="2" BorderBrush="{StaticResource BorderBrush}"
+                     BorderThickness="1" Background="White" SelectionChanged="MatchesList_SelectionChanged"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="ItemChrome" Background="{TemplateBinding Background}"
+                                            Padding="14,12" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="0,0,0,1">
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="ItemChrome" Property="Background" Value="#F5F6F8" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="ItemChrome" Property="Background" Value="{StaticResource AccentSoftBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="190" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="SemiBold"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding PublisherVersionLabel}" Margin="0,3,0,0" FontSize="12"
+                                           Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding EvidenceLabel}" Margin="0,7,0,0" FontSize="12"
+                                           Foreground="#414852" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding UninstallAvailabilityLabel}" FontSize="12"
+                                           Foreground="{StaticResource TealBrush}" TextAlignment="Right" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding CleanupScopeLabel}" Margin="0,5,0,0" FontSize="11"
+                                           Foreground="{StaticResource MutedTextBrush}" TextAlignment="Right" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+        <Border Grid.Row="2" Background="#F7F8FA" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <Grid Margin="24,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="SelectionStatusText" VerticalAlignment="Center" FontSize="12"
+                           Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" />
+                <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Content="取消"
+                        Margin="12,0,9,0" IsCancel="True" />
+                <Button x:Name="ContinueButton" Grid.Column="2" Style="{StaticResource PrimaryButton}"
+                        Content="运行官方卸载" IsEnabled="False" Click="ContinueButton_Click" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

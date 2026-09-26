@@ -6,14 +6,21 @@ namespace Kill.Services;
 public sealed class ResidueScanner
 {
     public Task<IReadOnlyList<CleanupCandidate>> ScanAsync(InstalledApplication application, CancellationToken cancellationToken = default) =>
-        Task.Run<IReadOnlyList<CleanupCandidate>>(() => Scan(application, cancellationToken), cancellationToken);
+        ScanAsync(application, null, cancellationToken);
 
-    private static IReadOnlyList<CleanupCandidate> Scan(InstalledApplication application, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<CleanupCandidate>> ScanAsync(InstalledApplication application,
+        string? verifiedInstallDirectory, CancellationToken cancellationToken = default) =>
+        Task.Run<IReadOnlyList<CleanupCandidate>>(
+            () => Scan(application, verifiedInstallDirectory, cancellationToken), cancellationToken);
+
+    private static IReadOnlyList<CleanupCandidate> Scan(InstalledApplication application,
+        string? verifiedInstallDirectory, CancellationToken cancellationToken)
     {
         var results = new List<CleanupCandidate>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         AddInstallLocation(application, results, seen);
+        AddVerifiedInstallDirectory(application, verifiedInstallDirectory, results, seen);
 
         var roots = new[]
         {
@@ -33,6 +40,17 @@ public sealed class ResidueScanner
         ScanRegistry(RegistryHive.LocalMachine, RegistryView.Registry32, application, results, seen);
 
         return results.OrderBy(item => item.Risk).ThenBy(item => item.DisplayTarget).ToList();
+    }
+
+    private static void AddVerifiedInstallDirectory(InstalledApplication app, string? directory,
+        List<CleanupCandidate> results, HashSet<string> seen)
+    {
+        if (app.Kind == ApplicationKind.Store || string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory)) return;
+        if (!SafetyPolicy.IsPathSafeToQuarantine(directory)) return;
+
+        AddFileCandidate(results, seen, directory, CleanupItemKind.Directory,
+            "所选目录已通过安装登记、显示图标或官方卸载器路径确认；仍可能包含共享组件，请核对内容。",
+            RiskLevel.High, false);
     }
 
     private static void AddInstallLocation(InstalledApplication app, List<CleanupCandidate> results, HashSet<string> seen)

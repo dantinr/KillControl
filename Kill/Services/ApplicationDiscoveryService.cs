@@ -75,6 +75,7 @@ public sealed class ApplicationDiscoveryService
                             InstallDate = FormatInstallDate(ReadString(key, "InstallDate")),
                             EstimatedSizeBytes = sizeKb > 0 ? sizeKb * 1024 : null,
                             InstallLocation = installLocation,
+                            DisplayIcon = ReadString(key, "DisplayIcon"),
                             UninstallCommand = uninstall,
                             QuietUninstallCommand = quietUninstall,
                             RegistryKeyPath = $@"{UninstallPath}\{subKeyName}",

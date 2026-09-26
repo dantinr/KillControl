@@ -31,6 +31,13 @@
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="IdentifyDirectoryButton" Style="{StaticResource SecondaryButton}"
+                            Margin="0,0,8,0" Padding="13,7" Click="IdentifyDirectoryButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons" FontSize="15" Margin="0,0,7,0" />
+                            <TextBlock Text="按目录识别" />
+                        </StackPanel>
+                    </Button>
                     <Button x:Name="ResourceMonitorButton" Style="{StaticResource SecondaryButton}"
                             Margin="0,0,8,0" Padding="13,7" Click="ResourceMonitorButton_Click">
                         <StackPanel Orientation="Horizontal">

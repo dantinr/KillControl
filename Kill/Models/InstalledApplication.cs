@@ -23,6 +23,7 @@ public sealed class InstalledApplication
     public string InstallDate { get; init; } = "";
     public long? EstimatedSizeBytes { get; init; }
     public string InstallLocation { get; init; } = "";
+    public string DisplayIcon { get; init; } = "";
     public string UninstallCommand { get; init; } = "";
     public string QuietUninstallCommand { get; init; } = "";
     public string PackageFullName { get; init; } = "";
