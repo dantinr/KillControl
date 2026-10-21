@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     private bool _allowClose;
     private ResourceMonitorView? ResourceMonitor => _views.GetValueOrDefault("Resources") as ResourceMonitorView;
     private BehaviorMonitorView? BehaviorMonitor => _views.GetValueOrDefault("Behavior") as BehaviorMonitorView;
+    private NetworkMonitorView? NetworkMonitor => _views.GetValueOrDefault("Network") as NetworkMonitorView;
 
     public MainWindow(string initialModule = "Applications", bool diagnostics = false, string? resourceDatabasePath = null)
     {
@@ -36,6 +37,7 @@ public partial class MainWindow : Window
         {
             "Services" => ServicesTab,
             "Resources" => ResourcesTab,
+            "Network" => NetworkTab,
             "Behavior" => BehaviorTab,
             "History" => HistoryTab,
             _ => ApplicationsTab
@@ -48,6 +50,7 @@ public partial class MainWindow : Window
             {
                 "Services" => new ServiceManagementView(),
                 "Resources" => new ResourceMonitorView(_resourceDatabasePath),
+                "Network" => new NetworkMonitorView(),
                 "Behavior" => new BehaviorMonitorView(_diagnostics),
                 "History" => new HistoryView(new CleanupCoordinator()),
                 _ => new ApplicationsView()
@@ -71,8 +74,8 @@ public partial class MainWindow : Window
     {
         int behaviorCount = BehaviorMonitor?.RunningSessionCount ?? 0;
         bool resourcesRunning = ResourceMonitor?.IsMonitoring == true;
-        MonitoringStatus.Text = $"资源：{(resourcesRunning ? "监控中" : "未开始")}   ·   行为：{behaviorCount} 个程序";
-        StopMonitoringButton.IsEnabled = !_closing && (resourcesRunning || behaviorCount > 0);
+        MonitoringStatus.Text = $"资源：{(resourcesRunning ? "监控中" : "未开始")} · 网络：{(NetworkMonitor?.IsMonitoring == true ? "监控中" : "未开始")} · 行为：{behaviorCount} 个程序";
+        StopMonitoringButton.IsEnabled = !_closing && (resourcesRunning || behaviorCount > 0 || NetworkMonitor?.CanStop == true);
     }
 
     private async void StopMonitoring_Click(object sender, RoutedEventArgs e)
@@ -82,6 +85,7 @@ public partial class MainWindow : Window
         {
             if (BehaviorMonitor is { } behavior) await behavior.StopAllMonitoringAsync();
             if (ResourceMonitor is { } resources) await resources.StopFromShellAsync();
+            if (NetworkMonitor is { } network) await network.StopFromShellAsync();
         }
         catch (Exception exception)
         {
@@ -105,6 +109,7 @@ public partial class MainWindow : Window
             if (_views.GetValueOrDefault("Applications") is ApplicationsView applications) cleanupTasks.Add(applications.ShutdownAsync());
             if (BehaviorMonitor is { } behavior) cleanupTasks.Add(behavior.ShutdownAsync());
             if (ResourceMonitor is { } resources) cleanupTasks.Add(resources.ShutdownAsync());
+            if (NetworkMonitor is { } network) cleanupTasks.Add(network.ShutdownAsync());
             await Task.WhenAll(cleanupTasks);
             _allowClose = true;
             Close();

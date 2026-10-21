@@ -39,7 +39,7 @@
                     <Border Background="{StaticResource AccentBrush}" Width="38" Height="38" CornerRadius="8"><TextBlock Text="K" Foreground="White" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
                     <StackPanel Margin="12,0,0,0">
                         <StackPanel Orientation="Horizontal"><TextBlock Text="Kill Control" Foreground="White" FontSize="22" FontWeight="SemiBold" /><TextBlock x:Name="VersionText" Foreground="#BAC2CE" Margin="10,7,0,0" FontSize="11" /></StackPanel>
-                        <TextBlock Text="应用与服务管理 · 资源与行为监控" Foreground="#BAC2CE" FontSize="11" Margin="0,2,0,0" />
+                        <TextBlock Text="应用与服务管理 · 资源、网络与行为监控" Foreground="#BAC2CE" FontSize="11" Margin="0,2,0,0" />
                     </StackPanel>
                 </StackPanel>
                 <TextBlock x:Name="MonitoringStatus" Grid.Column="1" Text="监控未开始" Foreground="#D6DCE5" VerticalAlignment="Center" Margin="20,0" FontSize="12" />
@@ -51,6 +51,7 @@
                 <RadioButton x:Name="ApplicationsTab" Content="应用管理" Tag="Applications" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
                 <RadioButton x:Name="ServicesTab" Content="服务管理" Tag="Services" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
                 <RadioButton x:Name="ResourcesTab" Content="资源监控" Tag="Resources" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
+                <RadioButton x:Name="NetworkTab" Content="网络监控" Tag="Network" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
                 <RadioButton x:Name="BehaviorTab" Content="行为监控" Tag="Behavior" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
                 <RadioButton x:Name="HistoryTab" Content="隔离记录" Tag="History" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
                 <Button x:Name="AboutButton" Content="关于" Style="{StaticResource QuietButton}"

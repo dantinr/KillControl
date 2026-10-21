@@ -41,6 +41,12 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Length == 2 && e.Args[0] == "--verify-network")
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            _ = NetworkDiagnostics.RunAsync(this, e.Args[1]);
+            return;
+        }
         if (e.Args.Length == 3 && e.Args[0] == "--verify-collector")
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -63,6 +69,7 @@ public partial class App : Application
         {
             "--services" => "Services",
             "--resources" => "Resources",
+            "--network" => "Network",
             "--behavior" => "Behavior",
             "--history" => "History",
             _ => "Applications"

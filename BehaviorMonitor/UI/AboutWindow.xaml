@@ -12,7 +12,7 @@
     </StackPanel>
     <Border Grid.Row="1" Style="{StaticResource Card}" Padding="18">
       <StackPanel>
-        <TextBlock Text="Windows 应用与服务管理、资源监控及程序行为监控工具。支持官方卸载、残留复核与隔离恢复、服务保护及本地监控日志。" TextWrapping="Wrap" LineHeight="22"/>
+        <TextBlock Text="Windows 应用与服务管理、资源、网络及程序行为监控工具。支持官方卸载、残留复核与隔离恢复、服务保护、连接流量统计及本地监控日志。" TextWrapping="Wrap" LineHeight="22"/>
         <TextBlock Text="项目地址" FontWeight="SemiBold" Margin="0,18,0,6"/>
         <TextBlock><Hyperlink NavigateUri="https://github.com/dantinr/KillControl" RequestNavigate="Project_RequestNavigate">github.com/dantinr/KillControl</Hyperlink></TextBlock>
         <TextBlock Text="Apache License 2.0 · 第三方组件声明见程序目录中的 THIRD_PARTY.md" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,12,0,0"/>

@@ -20,7 +20,7 @@
     <Product>Kill Control</Product>
     <AssemblyTitle>Kill Control</AssemblyTitle>
     <Authors>Kill</Authors>
-    <Description>Windows 应用管理、服务管理、资源与行为监控工具</Description>
+    <Description>Windows 应用管理、服务管理、资源、网络与行为监控工具</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <LicenseFile>$(MSBuildProjectDirectory)\..\LICENSE</LicenseFile>
     <ThirdPartyNoticesFile>$(MSBuildProjectDirectory)\..\THIRD_PARTY.md</ThirdPartyNoticesFile>

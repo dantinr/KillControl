@@ -1,0 +1,103 @@
+<local:WorkspaceView x:Class="Kill.NetworkMonitorView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Kill">
+    <local:WorkspaceView.Resources>
+        <Style x:Key="NetworkCellText" TargetType="TextBlock">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="5,0" />
+        </Style>
+    </local:WorkspaceView.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="82" /><RowDefinition Height="100" /><RowDefinition Height="64" />
+            <RowDefinition Height="*" /><RowDefinition Height="96" /><RowDefinition Height="38" />
+        </Grid.RowDefinitions>
+        <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid Margin="22,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="网络监控" FontSize="22" FontWeight="Bold" />
+                    <TextBlock Text="IP / 端口 · 连接状态 · 传输速率与流量 · 观测时长" FontSize="12"
+                               Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="StopButton" Content="停止监控" Style="{StaticResource SecondaryButton}" IsEnabled="False" Margin="0,0,9,0" Click="StopButton_Click" />
+                    <Button x:Name="StartButton" Content="开始监控" Style="{StaticResource PrimaryButton}" Click="StartButton_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+        <UniformGrid Grid.Row="1" Columns="4" Margin="16,12">
+            <Border Background="White" CornerRadius="6" Margin="6,0" Padding="14,9">
+                <StackPanel><TextBlock Text="当前连接 / 端点" FontSize="12" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock x:Name="ConnectionCountText" Text="—" FontSize="22" FontWeight="SemiBold" Margin="0,4,0,0" /></StackPanel>
+            </Border>
+            <Border Background="White" CornerRadius="6" Margin="6,0" Padding="14,9">
+                <StackPanel><TextBlock Text="发送 / 接收速率" FontSize="12" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock x:Name="RateText" Text="— / —" FontSize="19" FontWeight="SemiBold" Margin="0,7,0,0" /></StackPanel>
+            </Border>
+            <Border Background="White" CornerRadius="6" Margin="6,0" Padding="14,9">
+                <StackPanel><TextBlock Text="累计发送 / 接收" FontSize="12" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock x:Name="TrafficText" Text="— / —" FontSize="19" FontWeight="SemiBold" Margin="0,7,0,0" /></StackPanel>
+            </Border>
+            <Border Background="White" CornerRadius="6" Margin="6,0" Padding="14,9">
+                <StackPanel><TextBlock Text="本次监控时长" FontSize="12" Foreground="{StaticResource MutedTextBrush}" />
+                    <TextBlock x:Name="ElapsedText" Text="00:00:00" FontSize="22" FontWeight="SemiBold" Margin="0,4,0,0" /></StackPanel>
+            </Border>
+        </UniformGrid>
+        <Grid Grid.Row="2" Margin="22,8,22,14">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="125" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <Grid Margin="0,0,12,0">
+                <TextBox x:Name="SearchBox" ToolTip="搜索进程、PID、IP 或端口" AutomationProperties.Name="搜索网络连接" TextChanged="Filter_Changed" />
+                <TextBlock Text="搜索进程 / PID / IP / 端口" IsHitTestVisible="False" Margin="12,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}">
+                    <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                    </Style></TextBlock.Style>
+                </TextBlock>
+            </Grid>
+            <ComboBox x:Name="ProtocolFilter" Grid.Column="1" SelectedIndex="0" SelectionChanged="Filter_Changed">
+                <ComboBoxItem Content="全部协议" Tag="All" /><ComboBoxItem Content="TCP" Tag="TCP" /><ComboBoxItem Content="UDP" Tag="UDP" />
+            </ComboBox>
+            <CheckBox x:Name="ShowEndedCheck" Grid.Column="2" Content="显示已结束" IsChecked="True" Margin="18,0" VerticalAlignment="Center" Checked="Filter_Changed" Unchecked="Filter_Changed" />
+            <TextBlock x:Name="VisibleCountText" Grid.Column="3" Text="0 条" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" />
+        </Grid>
+        <Grid Grid.Row="3" Margin="22,0,22,0">
+            <DataGrid x:Name="ConnectionsGrid" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"
+                      CanUserReorderColumns="True" SelectionMode="Single" EnableRowVirtualization="True"
+                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="34" BorderBrush="{StaticResource BorderBrush}"
+                      SelectionChanged="ConnectionsGrid_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                <DataGrid.RowStyle><Style TargetType="DataGridRow"><Setter Property="ToolTip" Value="{Binding Detail}" />
+                    <Style.Triggers><DataTrigger Binding="{Binding IsEnded}" Value="True"><Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" /></DataTrigger></Style.Triggers>
+                </Style></DataGrid.RowStyle>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="进程 / PID" Binding="{Binding ProcessLabel}" Width="180" ElementStyle="{StaticResource NetworkCellText}" />
+                    <DataGridTextColumn Header="协议" Binding="{Binding Protocol}" Width="58" ElementStyle="{StaticResource NetworkCellText}" />
+                    <DataGridTextColumn Header="本地 IP : 端口" Binding="{Binding LocalEndpoint}" Width="180" ElementStyle="{StaticResource NetworkCellText}" />
+                    <DataGridTextColumn Header="远端 IP : 端口" Binding="{Binding RemoteEndpoint}" Width="180" ElementStyle="{StaticResource NetworkCellText}" />
+                    <DataGridTextColumn Header="状态" Binding="{Binding State}" Width="96" ElementStyle="{StaticResource NetworkCellText}" />
+                    <DataGridTextColumn Header="发送速率" Binding="{Binding SendRateText}" SortMemberPath="SendRate" Width="108" ElementStyle="{StaticResource NetworkCellText}" />
+                    <DataGridTextColumn Header="接收速率" Binding="{Binding ReceiveRateText}" SortMemberPath="ReceiveRate" Width="108" ElementStyle="{StaticResource NetworkCellText}" />
+                    <DataGridTextColumn Header="累计发送" Binding="{Binding SentText}" SortMemberPath="SentBytes" Width="104" ElementStyle="{StaticResource NetworkCellText}" />
+                    <DataGridTextColumn Header="累计接收" Binding="{Binding ReceivedText}" SortMemberPath="ReceivedBytes" Width="104" ElementStyle="{StaticResource NetworkCellText}" />
+                    <DataGridTextColumn Header="观测时长" Binding="{Binding Duration}" SortMemberPath="DurationSeconds" Width="100" ElementStyle="{StaticResource NetworkCellText}" />
+                </DataGrid.Columns>
+            </DataGrid>
+            <Border x:Name="EmptyState" Background="White" Margin="1,28,1,1">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="600">
+                    <TextBlock x:Name="EmptyText" Text="点击“开始监控”查看网络连接与实时流量" FontSize="17" TextAlignment="Center" />
+                    <TextBlock Text="采集需要 Windows 管理员授权；主界面保持普通权限。" Foreground="{StaticResource MutedTextBrush}" TextAlignment="Center" Margin="0,10,0,0" />
+                </StackPanel>
+            </Border>
+        </Grid>
+        <Border Grid.Row="4" Background="White" Padding="14,10" Margin="22,12,22,12" CornerRadius="5">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="DetailText" Text="仅记录本次监控期间的传输字节，包含本机和局域网流量。观测时长从首次发现连接开始，不等于程序运行时长。UDP 端点没有固定远端，发生传输后按远端分别显示。" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource MutedTextBrush}" />
+            </ScrollViewer>
+        </Border>
+        <Border Grid.Row="5" Background="#F0F2F4" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <TextBlock x:Name="StatusText" Text="未开始 · 每秒刷新 · 统计仅保留在本次窗口会话中" Margin="22,0" VerticalAlignment="Center" FontSize="12"
+                       Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+        </Border>
+    </Grid>
+</local:WorkspaceView>

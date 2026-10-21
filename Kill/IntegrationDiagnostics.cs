@@ -108,7 +108,7 @@ internal static class IntegrationDiagnostics
             }], lines.Add);
             var grid = (DataGrid)behavior.FindName("EventGrid");
             int eventCount = grid.Items.Count;
-            foreach (string module in new[] { "Applications", "Services", "History", "Resources", "Behavior" })
+            foreach (string module in new[] { "Applications", "Services", "History", "Resources", "Network", "Behavior" })
             {
                 var view = window.Navigate(module);
                 await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
@@ -116,6 +116,11 @@ internal static class IntegrationDiagnostics
             }
             Check(ReferenceEquals(behavior, window.Navigate("Behavior")) && grid.Items.Count == eventCount,
                 "navigation preserves behavior view, evidence and sessions");
+            var network = (NetworkMonitorView)window.Navigate("Network");
+            network.VerifyUi(lines.Add);
+            window.Navigate("Applications");
+            Check(ReferenceEquals(network, window.Navigate("Network")) && network.LatestSnapshot?.Flows.Count == 5,
+                "navigation preserves the network page and observations");
             var applications = (ApplicationsView)window.Navigate("Applications");
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             await applications.VerifyRuntimeUiAsync(lines.Add);
@@ -138,6 +143,7 @@ internal static class IntegrationDiagnostics
             Check(!resources.IsMonitoring && behavior.RunningSessionCount == 0,
                 "closing the shell stops both monitoring modules and saves the resource session");
             Check(!applications.IsRuntimeRefreshEnabled, "closing the shell stops application runtime refresh");
+            Check(!network.CanStop, "closing the shell leaves network collection stopped");
             result = 0;
         }
         catch (Exception exception) { lines.Add("FAIL: " + exception); }
@@ -172,6 +178,7 @@ internal static class IntegrationDiagnostics
         try
         {
             if (window.Navigate(module) is BehaviorMonitorView behavior) behavior.SetPreviewData();
+            if (window.Navigate(module) is NetworkMonitorView network) network.SetPreviewData();
             window.Show();
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             if (window.Navigate(module) is ResourceMonitorView resources) await resources.InitializationTask;

@@ -2,6 +2,8 @@ using System.IO.Pipes;
 using System.Threading.Channels;
 using ProcessSentinel.Core;
 
+if (args.Length > 0 && args[0] == "--network-pipe") return await NetworkCollector.RunAsync(args);
+
 if (args.Length != 4 || args[0] != "--pipe" || !Guid.TryParseExact(args[1], "N", out _) || args[2] != "--parent" || !int.TryParse(args[3], out int parentId) || parentId <= 0) return 2;
 using var lifetime = new CancellationTokenSource();
 using var pipe = new NamedPipeClientStream(".", "ProcessSentinel-" + args[1], PipeDirection.InOut, PipeOptions.Asynchronous, System.Security.Principal.TokenImpersonationLevel.Identification);
