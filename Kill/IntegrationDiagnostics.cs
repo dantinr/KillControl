@@ -167,6 +167,7 @@ internal static class IntegrationDiagnostics
         string directory = Path.Combine(Path.GetTempPath(), "Kill-suite-preview-" + Guid.NewGuid().ToString("N"));
         var window = new MainWindow(module, true, Path.Combine(directory, "monitor.db"))
         { Width = 1280, Height = 880, ShowActivated = false, ShowInTaskbar = false };
+        AboutWindow? about = null;
         int result = 1;
         try
         {
@@ -176,8 +177,16 @@ internal static class IntegrationDiagnostics
             if (window.Navigate(module) is ResourceMonitorView resources) await resources.InitializationTask;
             await Task.Delay(1500);
             window.UpdateLayout();
-            var bitmap = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);
-            bitmap.Render(window);
+            Window preview = window;
+            if (module == "About")
+            {
+                about = new AboutWindow { Owner = window };
+                about.Show();
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                preview = about;
+            }
+            var bitmap = new RenderTargetBitmap((int)preview.ActualWidth, (int)preview.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(preview);
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(bitmap));
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
@@ -187,6 +196,7 @@ internal static class IntegrationDiagnostics
         catch (Exception exception) { await File.WriteAllTextAsync(path + ".error.txt", exception.ToString()); }
         finally
         {
+            about?.Close();
             await window.CloseForDiagnosticsAsync();
             Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             if (Directory.Exists(directory)) Directory.Delete(directory, true);

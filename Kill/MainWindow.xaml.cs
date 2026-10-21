@@ -65,6 +65,8 @@ public partial class MainWindow : Window
         if (sender is RadioButton { Tag: string module } && Workspace is not null) Navigate(module);
     }
 
+    private void About_Click(object sender, RoutedEventArgs e) => new AboutWindow { Owner = this }.ShowDialog();
+
     private void UpdateMonitoringStatus()
     {
         int behaviorCount = BehaviorMonitor?.RunningSessionCount ?? 0;

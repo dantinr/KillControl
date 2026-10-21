@@ -53,6 +53,8 @@
                 <RadioButton x:Name="ResourcesTab" Content="资源监控" Tag="Resources" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
                 <RadioButton x:Name="BehaviorTab" Content="行为监控" Tag="Behavior" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
                 <RadioButton x:Name="HistoryTab" Content="隔离记录" Tag="History" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
+                <Button x:Name="AboutButton" Content="关于" Style="{StaticResource QuietButton}"
+                        FontSize="14" Padding="24,14" ToolTip="关于 Kill Control" Click="About_Click" />
             </StackPanel>
         </Border>
         <Grid x:Name="Workspace" Grid.Row="2" />
