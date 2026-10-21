@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Kill.Models;
 using Kill.Services;
 using Microsoft.Win32;
@@ -13,6 +14,9 @@ namespace Kill;
 public partial class ApplicationsView : WorkspaceView
 {
     private readonly ApplicationDiscoveryService _discoveryService = new();
+    private readonly ApplicationRuntimeService _runtimeService = new();
+    private readonly DispatcherTimer _runtimeTimer = new(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(3) };
+    private readonly CancellationTokenSource _runtimeCancellation = new();
     private readonly InstallDirectoryIdentificationService _directoryIdentificationService = new();
     private readonly UninstallService _uninstallService = new();
     private readonly ResidueScanner _residueScanner = new();
@@ -20,17 +24,40 @@ public partial class ApplicationsView : WorkspaceView
     private readonly ObservableCollection<InstalledApplication> _applications = [];
     private ICollectionView? _applicationsView;
     private CancellationTokenSource? _refreshCancellation;
+    private Task _runtimeRefreshTask = Task.CompletedTask;
+    private bool _initialized;
+    private bool _shuttingDown;
+    internal Task InitializationTask { get; private set; } = Task.CompletedTask;
+    internal bool IsRuntimeRefreshEnabled => _runtimeTimer.IsEnabled;
 
     public ApplicationsView()
     {
         InitializeComponent();
+        _runtimeTimer.Tick += async (_, _) => await RefreshRuntimeAsync();
+        IsVisibleChanged += async (_, _) =>
+        {
+            if (!_initialized || _shuttingDown) return;
+            if (IsVisible)
+            {
+                _runtimeTimer.Start();
+                await RefreshRuntimeAsync();
+            }
+            else _runtimeTimer.Stop();
+        };
     }
 
-    private async void Window_Loaded(object sender, RoutedEventArgs e) => await RefreshApplicationsAsync();
+    private void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (_initialized) return;
+        _initialized = true;
+        InitializationTask = RefreshApplicationsAsync();
+    }
     private async void RefreshButton_Click(object sender, RoutedEventArgs e) => await RefreshApplicationsAsync();
 
     private async Task RefreshApplicationsAsync()
     {
+        if (_shuttingDown) return;
+        _runtimeTimer.Stop();
         _refreshCancellation?.Cancel();
         _refreshCancellation = new CancellationTokenSource();
         var selectedId = SelectedApplication?.Id;
@@ -45,6 +72,8 @@ public partial class ApplicationsView : WorkspaceView
             _applicationsView.Filter = FilterApplication;
             ApplyFilter();
             ApplicationsList.SelectedItem = _applications.FirstOrDefault(app => app.Id == selectedId) ?? _applications.FirstOrDefault();
+            await _runtimeRefreshTask;
+            await RefreshRuntimeAsync();
             SetStatus($"已读取 {_applications.Count} 个应用");
         }
         catch (OperationCanceledException)
@@ -59,7 +88,42 @@ public partial class ApplicationsView : WorkspaceView
         finally
         {
             SetBusy(false);
+            if (IsVisible && !_shuttingDown) _runtimeTimer.Start();
         }
+    }
+
+    internal Task RefreshRuntimeAsync()
+    {
+        if (_shuttingDown || _applications.Count == 0 || !_runtimeRefreshTask.IsCompleted) return _runtimeRefreshTask;
+        _runtimeRefreshTask = RefreshRuntimeCoreAsync(_applications.ToArray(), _runtimeCancellation.Token);
+        return _runtimeRefreshTask;
+    }
+
+    private async Task RefreshRuntimeCoreAsync(InstalledApplication[] applications, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var statuses = await Task.Run(() => _runtimeService.Capture(applications, cancellationToken), cancellationToken);
+            if (_shuttingDown) return;
+            foreach (var (application, status) in statuses) application.RuntimeStatus = status;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception)
+        {
+            if (_shuttingDown) return;
+            foreach (var application in applications)
+                application.RuntimeStatus = new ApplicationRuntimeStatus(ApplicationRunState.Unknown, [],
+                    "本次进程信息读取失败，稍后会自动重试。", DateTimeOffset.UtcNow);
+        }
+    }
+
+    internal async Task ShutdownAsync()
+    {
+        _shuttingDown = true;
+        _runtimeTimer.Stop();
+        _refreshCancellation?.Cancel();
+        _runtimeCancellation.Cancel();
+        await Task.WhenAll(WhenIdle, _runtimeRefreshTask);
     }
 
     private InstalledApplication? SelectedApplication => ApplicationsList.SelectedItem as InstalledApplication;

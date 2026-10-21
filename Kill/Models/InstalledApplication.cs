@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Microsoft.Win32;
 
 namespace Kill.Models;
@@ -14,8 +15,21 @@ public enum InstallScope
     AllUsers
 }
 
-public sealed class InstalledApplication
+public sealed class InstalledApplication : INotifyPropertyChanged
 {
+    private ApplicationRuntimeStatus _runtimeStatus = ApplicationRuntimeStatus.Checking;
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public ApplicationRuntimeStatus RuntimeStatus
+    {
+        get => _runtimeStatus;
+        internal set
+        {
+            _runtimeStatus = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RuntimeStatus)));
+        }
+    }
+
     public required string Id { get; init; }
     public required string DisplayName { get; init; }
     public string Version { get; init; } = "";

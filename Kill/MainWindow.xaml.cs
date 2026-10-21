@@ -100,6 +100,7 @@ public partial class MainWindow : Window
         try
         {
             var cleanupTasks = _views.Values.OfType<WorkspaceView>().Select(view => view.WhenIdle).ToList();
+            if (_views.GetValueOrDefault("Applications") is ApplicationsView applications) cleanupTasks.Add(applications.ShutdownAsync());
             if (BehaviorMonitor is { } behavior) cleanupTasks.Add(behavior.ShutdownAsync());
             if (ResourceMonitor is { } resources) cleanupTasks.Add(resources.ShutdownAsync());
             await Task.WhenAll(cleanupTasks);

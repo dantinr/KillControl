@@ -116,6 +116,14 @@ internal static class IntegrationDiagnostics
             }
             Check(ReferenceEquals(behavior, window.Navigate("Behavior")) && grid.Items.Count == eventCount,
                 "navigation preserves behavior view, evidence and sessions");
+            var applications = (ApplicationsView)window.Navigate("Applications");
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            await applications.VerifyRuntimeUiAsync(lines.Add);
+            Check(applications.IsRuntimeRefreshEnabled, "application runtime refresh runs while the page is visible");
+            window.Navigate("Behavior");
+            Check(!applications.IsRuntimeRefreshEnabled, "application runtime refresh pauses when the page is hidden");
+            window.Navigate("Applications");
+            Check(applications.IsRuntimeRefreshEnabled, "application runtime refresh resumes after navigation");
             var resources = (ResourceMonitorView)window.Navigate("Resources");
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             await resources.InitializationTask;
@@ -129,6 +137,7 @@ internal static class IntegrationDiagnostics
             await window.CloseForDiagnosticsAsync();
             Check(!resources.IsMonitoring && behavior.RunningSessionCount == 0,
                 "closing the shell stops both monitoring modules and saves the resource session");
+            Check(!applications.IsRuntimeRefreshEnabled, "closing the shell stops application runtime refresh");
             result = 0;
         }
         catch (Exception exception) { lines.Add("FAIL: " + exception); }

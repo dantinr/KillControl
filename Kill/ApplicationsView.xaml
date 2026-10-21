@@ -3,6 +3,17 @@
         xmlns:local="clr-namespace:Kill"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Loaded="Window_Loaded">
+    <local:WorkspaceView.Resources>
+        <Style x:Key="RuntimeStatusText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RuntimeStatus.IsRunning}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource TealBrush}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </local:WorkspaceView.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="72" />
@@ -130,6 +141,8 @@
                                                    TextTrimming="CharacterEllipsis">
                                             <Run Text="{Binding PublisherLabel, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding VersionLabel, Mode=OneWay}" />
                                         </TextBlock>
+                                        <TextBlock x:Name="ListRuntimeStatus" Text="{Binding RuntimeStatus.Label}" FontSize="12" Margin="0,4,0,0"
+                                                   Style="{StaticResource RuntimeStatusText}" ToolTip="{Binding RuntimeStatus.Details}" />
                                     </StackPanel>
                                 </Grid>
                             </DataTemplate>
@@ -178,11 +191,15 @@
                         </StackPanel>
                     </Grid>
 
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,22,0,22">
+                    <WrapPanel Grid.Row="1" Margin="0,18,0,18">
                         <Border Style="{StaticResource PillText}" Margin="0,0,7,0"><TextBlock Text="{Binding KindLabel}" FontSize="12" /></Border>
                         <Border Style="{StaticResource PillText}" Margin="0,0,7,0"><TextBlock Text="{Binding ScopeLabel}" FontSize="12" /></Border>
-                        <Border Style="{StaticResource PillText}"><TextBlock Text="{Binding VersionLabel}" FontSize="12" /></Border>
-                    </StackPanel>
+                        <Border Style="{StaticResource PillText}" Margin="0,0,7,0"><TextBlock Text="{Binding VersionLabel}" FontSize="12" /></Border>
+                        <Border Style="{StaticResource PillText}" ToolTip="{Binding RuntimeStatus.Details}">
+                            <TextBlock x:Name="DetailRuntimeStatus" Text="{Binding RuntimeStatus.Label}" FontSize="12"
+                                       Style="{StaticResource RuntimeStatusText}" />
+                        </Border>
+                    </WrapPanel>
 
                     <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
@@ -194,6 +211,7 @@
                             <RowDefinition Height="42" />
                             <RowDefinition Height="42" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <TextBlock Text="占用空间" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Center" />
                         <TextBlock Grid.Column="1" Text="{Binding SizeLabel}" VerticalAlignment="Center" />
@@ -204,6 +222,11 @@
                         <TextBlock Grid.Row="3" Text="安装位置" Foreground="{StaticResource MutedTextBrush}" VerticalAlignment="Top" Margin="0,10,0,0" />
                         <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding InstallLocation}" VerticalAlignment="Top"
                                    Margin="0,10,0,0" TextWrapping="Wrap" Foreground="#414852" />
+                        <TextBlock Grid.Row="4" Text="运行状态" Foreground="{StaticResource MutedTextBrush}"
+                                   VerticalAlignment="Top" Margin="0,14,0,0" />
+                        <TextBlock x:Name="DetailRuntimeSummary" Grid.Row="4" Grid.Column="1" Text="{Binding RuntimeStatus.Summary}"
+                                   Margin="0,14,0,0" TextWrapping="Wrap" MaxHeight="74" TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding RuntimeStatus.Details}" Foreground="#414852" />
                     </Grid>
 
                     <Border Grid.Row="3" Background="{StaticResource WarningSoftBrush}" BorderBrush="#F1D7A8"

@@ -52,6 +52,7 @@ Kill Control must remain conservative, transparent, and recoverable wherever rec
 ## Architecture Guide
 
 - `ApplicationDiscoveryService`: reads desktop and current-user Store application registrations.
+- `ApplicationRuntimeService`: takes read-only process snapshots and matches executable paths to registered applications. Keep runtime state transient, never infer it from display names, and preserve ambiguity for shared paths. Refresh only while the applications page is visible and stop refresh work when the shell closes.
 - `InstallDirectoryIdentificationService`: matches a user-selected directory only against registered install locations, display icons, and official uninstaller paths.
 - `UninstallService`: resolves and launches registered uninstall commands.
 - `ResidueScanner` and `SafetyPolicy`: produce conservative cleanup candidates.

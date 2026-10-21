@@ -5,6 +5,79 @@ using Microsoft.Data.Sqlite;
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("运行状态按路径匹配且去重进程", () =>
+    {
+        var app = TestApplication("Example", installLocation: @"C:\RuntimeTest\Product");
+        var result = ApplicationRuntimeService.Match([app],
+            [new(101, @"c:\runtimetest\product\app.exe"), new(102, @"C:\RuntimeTest\Product\bin\helper.exe"),
+             new(102, @"C:\RuntimeTest\Product\bin\helper.exe"), new(103, @"C:\RuntimeTest\Product Extra\app.exe")], DateTimeOffset.UtcNow)[app];
+        return CheckAsync(result.State == ApplicationRunState.Running && result.Processes.Select(process => process.Id).SequenceEqual([101, 102]),
+            "必须按完整路径边界识别主进程和子目录进程，不能匹配相似前缀或重复统计 PID");
+    }),
+    ("运行状态不根据进程名称猜测", () =>
+    {
+        var app = TestApplication("Example", installLocation: @"C:\RuntimeTest\Example");
+        var unknown = TestApplication("No Evidence");
+        var root = TestApplication("Drive Root", installLocation: @"C:\");
+        var result = ApplicationRuntimeService.Match([app, unknown, root], [new(101, @"C:\Other\Example.exe")], DateTimeOffset.UtcNow);
+        return CheckAsync(result[app].State == ApplicationRunState.NotDetected && result[unknown].State == ApplicationRunState.Unknown &&
+                          result[root].State == ApplicationRunState.Unknown,
+            "同名进程、缺少证据及磁盘根目录不能被误判为正在运行");
+    }),
+    ("运行状态支持图标可执行文件精确识别", () =>
+    {
+        var app = TestApplication("Icon", displayIcon: @"""C:\RuntimeTest\Icon\app.exe"",0");
+        var dll = TestApplication("DLL Icon", displayIcon: @"C:\RuntimeTest\Icon\icons.dll,0");
+        var result = ApplicationRuntimeService.Match([app, dll], [new(101, @"C:\RuntimeTest\Icon\APP.exe")], DateTimeOffset.UtcNow);
+        return CheckAsync(result[app].IsRunning && result[dll].State == ApplicationRunState.Unknown,
+            "可执行图标可提供精确路径证据，资源 DLL 不得当成应用进程");
+    }),
+    ("运行状态拒绝共用目录归属猜测", () =>
+    {
+        var first = TestApplication("First", installLocation: @"C:\RuntimeTest\Shared");
+        var second = TestApplication("Second", installLocation: @"C:\RuntimeTest\Shared");
+        var result = ApplicationRuntimeService.Match([first, second], [new(101, @"C:\RuntimeTest\Shared\helper.exe")], DateTimeOffset.UtcNow);
+        return CheckAsync(result.Values.All(status => status.State == ApplicationRunState.Unknown && status.Processes.Count == 0),
+            "共用同一路径的进程应显示归属不确定，不能将两个应用都标为运行中");
+    }),
+    ("运行状态优先使用精确程序及更具体目录", () =>
+    {
+        var parent = TestApplication("Parent", installLocation: @"C:\RuntimeTest\Vendor");
+        var child = TestApplication("Child", installLocation: @"C:\RuntimeTest\Vendor\Child");
+        var first = TestApplication("First", installLocation: @"C:\RuntimeTest\Shared", displayIcon: @"C:\RuntimeTest\Shared\first.exe");
+        var second = TestApplication("Second", installLocation: @"C:\RuntimeTest\Shared", displayIcon: @"C:\RuntimeTest\Shared\second.exe");
+        var result = ApplicationRuntimeService.Match([parent, child, first, second],
+            [new(101, @"C:\RuntimeTest\Vendor\Child\helper.exe"), new(102, @"C:\RuntimeTest\Shared\first.exe")], DateTimeOffset.UtcNow);
+        return CheckAsync(result[child].IsRunning && result[first].IsRunning &&
+                          result[parent].State == ApplicationRunState.NotDetected && result[second].State == ApplicationRunState.NotDetected,
+            "嵌套目录及共用目录的不同程序应归属到更明确的应用");
+    }),
+    ("运行状态支持商店应用且拒绝共享宿主", () =>
+    {
+        var storePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WindowsApps", "Example_1.0_x64");
+        var store = new InstalledApplication { Id = "store", DisplayName = "Store", Kind = ApplicationKind.Store, InstallLocation = storePath };
+        var host = TestApplication("Shared Host", displayIcon: Path.Combine(Environment.SystemDirectory, "rundll32.exe"));
+        var uninstaller = new InstalledApplication { Id = "uninstaller", DisplayName = "Uninstall Only", UninstallCommand = @"C:\RuntimeTest\uninstall.exe" };
+        var result = ApplicationRuntimeService.Match([store, host, uninstaller],
+            [new(101, Path.Combine(storePath, "app.exe")), new(102, Path.Combine(Environment.SystemDirectory, "rundll32.exe")),
+             new(103, @"C:\RuntimeTest\uninstall.exe")], DateTimeOffset.UtcNow);
+        return CheckAsync(result[store].IsRunning && result[host].State == ApplicationRunState.Unknown && result[uninstaller].State == ApplicationRunState.Unknown,
+            "商店应用应使用具体包目录；通用宿主或卸载命令不能代表应用正在运行");
+    }),
+    ("运行状态明确保留权限限制", () =>
+    {
+        var app = TestApplication("Example", installLocation: @"C:\RuntimeTest\Example");
+        var result = ApplicationRuntimeService.Match([app], [new(101, "")], DateTimeOffset.UtcNow, 1)[app];
+        return CheckAsync(result.State == ApplicationRunState.NotDetected && result.Description.Contains("无法读取") && result.CheckedAtUtc is not null,
+            "无法读取路径时不得按名称猜测或宣称应用确定未运行");
+    }),
+    ("本机应用运行状态只读识别", () =>
+    {
+        var app = TestApplication("SelfTest", displayIcon: Environment.ProcessPath ?? throw new InvalidOperationException("无法读取自身路径"));
+        var result = new ApplicationRuntimeService().Capture([app])[app];
+        return CheckAsync(result.IsRunning && result.Processes.Any(process => process.Id == Environment.ProcessId),
+            "应通过只读进程快照识别自身进程");
+    }),
     ("工作进程拒绝目录穿越与外部请求", () =>
     {
         foreach (var path in new[] { @"C:\outside.json", Path.Combine(KillPaths.TempRoot, "..", "outside.json"), Path.Combine(KillPaths.TempRoot, "nested", "request.json"), Path.Combine(KillPaths.TempRoot, "request.json:stream") })
