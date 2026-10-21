@@ -12,6 +12,10 @@ public static class KillPaths
     public static string HistoryRoot => Path.Combine(CommonRoot, "History");
     public static string QuarantineRoot => Path.Combine(CommonRoot, "Quarantine");
     public static string ServiceBackupRoot => Path.Combine(CommonRoot, "ServiceBackups");
+    public static string StartupBackupRoot => Path.Combine(LocalRoot, "StartupBackups");
+    public static string CommonStartupBackupRoot => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "KillStartupBackups");
     public static string ResourceDataRoot => Path.Combine(AppContext.BaseDirectory, "data");
     public static string ResourceDatabasePath => Path.Combine(ResourceDataRoot, "kill-monitor.db");
+    public static string NetworkHistoryDatabasePath => Path.Combine(ResourceDataRoot, "network-history.db");
 }

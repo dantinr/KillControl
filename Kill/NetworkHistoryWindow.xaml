@@ -1,0 +1,93 @@
+<Window x:Class="Kill.NetworkHistoryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="网络连接历史 · Kill Control" Width="1280" Height="800" MinWidth="1180" MinHeight="720"
+        WindowStartupLocation="CenterOwner" Background="#F5F6F8" Loaded="Window_Loaded" Closed="Window_Closed">
+    <Window.Resources>
+        <Style x:Key="HistoryCell" TargetType="TextBlock"><Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" /><Setter Property="Margin" Value="5,0" /></Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="90" /><RowDefinition Height="*" /><RowDefinition Height="128" /><RowDefinition Height="38" /></Grid.RowDefinitions>
+        <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="20,0">
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center"><TextBlock Text="进程连接历史" FontSize="22" FontWeight="Bold" />
+                    <TextBlock Text="选择进程查看曾观测到的远端 IP 与端口 · 按监控会话和进程创建时间区分记录" FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,5,0,0" /></StackPanel>
+                <Button x:Name="RefreshButton" Grid.Column="1" Content="刷新历史" Style="{StaticResource SecondaryButton}" VerticalAlignment="Center" Click="Refresh_Click" />
+            </Grid>
+        </Border>
+        <Grid x:Name="HistoryContent" Grid.Row="1" Margin="16,12,16,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="280" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <Grid><Grid.RowDefinitions><RowDefinition Height="42" /><RowDefinition Height="*" /><RowDefinition Height="42" /></Grid.RowDefinitions>
+                <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <Grid>
+                        <TextBox x:Name="ProcessSearchBox" ToolTip="输入进程名、PID 或程序路径后按回车" AutomationProperties.Name="搜索历史进程" KeyDown="ProcessSearch_KeyDown" />
+                        <TextBlock Text="进程名 / PID / 路径" Margin="10,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" IsHitTestVisible="False">
+                            <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=ProcessSearchBox}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                            </Style></TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                    <Button Grid.Column="1" Content="搜索" Style="{StaticResource QuietButton}" Margin="5,0,0,0" Click="ProcessSearch_Click" />
+                </Grid>
+                <DataGrid x:Name="ProcessesGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                          SelectionMode="Single" HeadersVisibility="Column" RowHeight="52" EnableRowVirtualization="True" SelectionChanged="Process_SelectionChanged">
+                    <DataGrid.RowStyle><Style TargetType="DataGridRow"><Setter Property="ToolTip" Value="{Binding Detail}" /></Style></DataGrid.RowStyle>
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="进程 / PID · 最后观测" Width="*" SortMemberPath="LastSeenUtc"><DataGridTemplateColumn.CellTemplate><DataTemplate>
+                            <StackPanel VerticalAlignment="Center" Margin="5,0"><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding LastSeen}" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" /></StackPanel>
+                        </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                        <DataGridTextColumn Header="记录" Binding="{Binding ConnectionCount}" SortMemberPath="ConnectionCount" Width="55" ElementStyle="{StaticResource HistoryCell}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+                <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <Button x:Name="ProcessPrevious" Content="上一页" Style="{StaticResource QuietButton}" Click="ProcessPrevious_Click" />
+                    <TextBlock x:Name="ProcessPageText" Grid.Column="1" Text="0 个进程" VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="11" />
+                    <Button x:Name="ProcessNext" Grid.Column="2" Content="下一页" Style="{StaticResource QuietButton}" Click="ProcessNext_Click" />
+                </Grid>
+            </Grid>
+            <Grid Grid.Column="2"><Grid.RowDefinitions><RowDefinition Height="42" /><RowDefinition Height="*" /><RowDefinition Height="42" /></Grid.RowDefinitions>
+                <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <Grid>
+                        <TextBox x:Name="RemoteSearchBox" ToolTip="输入远端 IP、端口或 TCP/UDP 后按回车" AutomationProperties.Name="搜索远端连接历史" KeyDown="RemoteSearch_KeyDown" />
+                        <TextBlock Text="远端 IP / 端口 / TCP / UDP" Margin="10,0" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" IsHitTestVisible="False">
+                            <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=RemoteSearchBox}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                            </Style></TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                    <Button Grid.Column="1" Content="筛选远端" Style="{StaticResource QuietButton}" Margin="5,0,0,0" Click="RemoteSearch_Click" />
+                </Grid>
+                <Grid Grid.Row="1">
+                    <DataGrid x:Name="HistoryGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single"
+                              HeadersVisibility="Column" RowHeight="34" EnableRowVirtualization="True" SelectionChanged="Connection_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                        <DataGrid.RowStyle><Style TargetType="DataGridRow"><Setter Property="ToolTip" Value="{Binding Detail}" /></Style></DataGrid.RowStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="协议" Binding="{Binding Protocol}" Width="58" ElementStyle="{StaticResource HistoryCell}" />
+                            <DataGridTextColumn Header="远端 IP" Binding="{Binding RemoteAddress}" Width="*" MinWidth="170" ElementStyle="{StaticResource HistoryCell}" />
+                            <DataGridTextColumn Header="端口" Binding="{Binding RemotePort}" SortMemberPath="RemotePort" Width="64" ElementStyle="{StaticResource HistoryCell}" />
+                            <DataGridTextColumn Header="首次观测" Binding="{Binding FirstSeen}" SortMemberPath="FirstSeenUtc" Width="145" ElementStyle="{StaticResource HistoryCell}" />
+                            <DataGridTextColumn Header="最后观测" Binding="{Binding LastSeen}" SortMemberPath="LastSeenUtc" Width="145" ElementStyle="{StaticResource HistoryCell}" />
+                            <DataGridTextColumn Header="累计发送" Binding="{Binding Sent}" SortMemberPath="SentBytes" Width="88" ElementStyle="{StaticResource HistoryCell}" />
+                            <DataGridTextColumn Header="累计接收" Binding="{Binding Received}" SortMemberPath="ReceivedBytes" Width="88" ElementStyle="{StaticResource HistoryCell}" />
+                            <DataGridTextColumn Header="最后状态" Binding="{Binding StateText}" Width="100" ElementStyle="{StaticResource HistoryCell}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock x:Name="EmptyText" Text="暂无连接历史。开始网络监控后，观测到的远端连接会自动保存。" TextWrapping="Wrap" TextAlignment="Center"
+                               MaxWidth="480" Margin="30" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MutedTextBrush}" IsHitTestVisible="False" />
+                </Grid>
+                <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <Button x:Name="ConnectionPrevious" Content="上一页" Style="{StaticResource QuietButton}" Click="ConnectionPrevious_Click" />
+                    <TextBlock x:Name="ConnectionPageText" Grid.Column="1" Text="0 条连接" VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="11" />
+                    <Button x:Name="ConnectionNext" Grid.Column="2" Content="下一页" Style="{StaticResource QuietButton}" Click="ConnectionNext_Click" />
+                </Grid>
+            </Grid>
+        </Grid>
+        <Border Grid.Row="2" Background="White" CornerRadius="5" Margin="16,8" Padding="12,8">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"><TextBlock x:Name="DetailsText" Text="历史仅包含启用网络监控后观测到的远端连接，监听/绑定端点不计入。记录保存在本机，停止和重启后仍可查看。" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource MutedTextBrush}" /></ScrollViewer>
+        </Border>
+        <TextBlock x:Name="StatusText" Grid.Row="3" Margin="18,0" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource MutedTextBrush}"
+                   TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+    </Grid>
+</Window>

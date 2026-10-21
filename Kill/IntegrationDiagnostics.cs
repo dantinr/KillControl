@@ -108,7 +108,7 @@ internal static class IntegrationDiagnostics
             }], lines.Add);
             var grid = (DataGrid)behavior.FindName("EventGrid");
             int eventCount = grid.Items.Count;
-            foreach (string module in new[] { "Applications", "Services", "History", "Resources", "Network", "Behavior" })
+            foreach (string module in new[] { "Applications", "Services", "Startup", "History", "Resources", "Network", "Behavior" })
             {
                 var view = window.Navigate(module);
                 await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
@@ -116,8 +116,14 @@ internal static class IntegrationDiagnostics
             }
             Check(ReferenceEquals(behavior, window.Navigate("Behavior")) && grid.Items.Count == eventCount,
                 "navigation preserves behavior view, evidence and sessions");
+            var startup = (StartupManagementView)window.Navigate("Startup");
+            await startup.WhenIdle;
+            startup.VerifyUi(lines.Add);
+            window.Navigate("Services");
+            Check(ReferenceEquals(startup, window.Navigate("Startup")), "navigation preserves the startup manager view");
             var network = (NetworkMonitorView)window.Navigate("Network");
             network.VerifyUi(lines.Add);
+            await network.VerifyHistoryUiAsync(lines.Add);
             window.Navigate("Applications");
             Check(ReferenceEquals(network, window.Navigate("Network")) && network.LatestSnapshot?.Flows.Count == 5,
                 "navigation preserves the network page and observations");
@@ -174,11 +180,13 @@ internal static class IntegrationDiagnostics
         var window = new MainWindow(module, true, Path.Combine(directory, "monitor.db"))
         { Width = 1280, Height = 880, ShowActivated = false, ShowInTaskbar = false };
         AboutWindow? about = null;
+        NetworkHistoryWindow? historyPreview = null;
         int result = 1;
         try
         {
             if (window.Navigate(module) is BehaviorMonitorView behavior) behavior.SetPreviewData();
             if (window.Navigate(module) is NetworkMonitorView network) network.SetPreviewData();
+            if (window.Navigate(module) is StartupManagementView startup) startup.SetPreviewData();
             window.Show();
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             if (window.Navigate(module) is ResourceMonitorView resources) await resources.InitializationTask;
@@ -192,6 +200,16 @@ internal static class IntegrationDiagnostics
                 await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
                 preview = about;
             }
+            if (module == "NetworkHistory")
+            {
+                historyPreview = new NetworkHistoryWindow(new Services.NetworkHistoryRepository(Path.Combine(directory, "network-history.db")))
+                { Owner = window, Width = 1180, Height = 720, ShowActivated = false, ShowInTaskbar = false };
+                historyPreview.SetPreviewData();
+                historyPreview.Show();
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                historyPreview.UpdateLayout();
+                preview = historyPreview;
+            }
             var bitmap = new RenderTargetBitmap((int)preview.ActualWidth, (int)preview.ActualHeight, 96, 96, PixelFormats.Pbgra32);
             bitmap.Render(preview);
             var encoder = new PngBitmapEncoder();
@@ -204,6 +222,7 @@ internal static class IntegrationDiagnostics
         finally
         {
             about?.Close();
+            historyPreview?.Close();
             await window.CloseForDiagnosticsAsync();
             Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             if (Directory.Exists(directory)) Directory.Delete(directory, true);

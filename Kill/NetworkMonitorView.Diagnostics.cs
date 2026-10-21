@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Windows.Controls;
+using System.Windows;
+using System.Windows.Threading;
 using Kill.Models;
 using ProcessSentinel.Core;
 using ProcessSentinel.Core.Networking;
@@ -10,6 +12,46 @@ public partial class NetworkMonitorView
 {
     internal NetworkMonitorClientDiagnostic Diagnostic => new(client?.Running == true, client?.Error ?? StatusText.Text);
     internal sealed record NetworkMonitorClientDiagnostic(bool Running, string Error);
+
+    internal async Task VerifyHistoryUiAsync(Action<string> report)
+    {
+        string session = Guid.NewGuid().ToString("N");
+        var first = latest!;
+        var process = first.Flows[0].Process;
+        var second = first.Flows[0] with
+        {
+            Id = "second-history",
+            Process = process with { Id = 23456, Name = "SecondHistory" },
+            Endpoint = first.Flows[0].Endpoint with { ProcessId = 23456 }
+        };
+        var reused = first.Flows[0] with { Id = "reused-history", Process = process with { StartTimeUtcTicks = process.StartTimeUtcTicks + 1 } };
+        await history.SaveAsync(session, first with { Flows = first.Flows.Concat([second, reused]).ToArray() });
+        var key = new NetworkHistoryProcessKey(session, process.Id, process.StartTimeUtcTicks);
+        displayedSessionId = session;
+        ConnectionsGrid.SelectedItem = byId["tcp"];
+        if (SelectedHistoryProcess != key) throw new InvalidOperationException("The retained connection lost its original history session.");
+        report("PASS: retained realtime rows locate their original history session after the client is gone");
+        var historyView = new NetworkHistoryWindow(history, key) { Owner = HostWindow, ShowActivated = false, ShowInTaskbar = false, Opacity = 0 };
+        try
+        {
+            historyView.Show();
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            await historyView.VerifyUiAsync(report);
+            if (IsMonitoring || client is not null) throw new InvalidOperationException("History browsing started collection.");
+            report("PASS: browsing saved network history requires no collection or elevation");
+        }
+        finally { historyView.Close(); await historyView.WhenIdle; }
+        var missing = new NetworkHistoryWindow(history, key with { SessionId = Guid.NewGuid().ToString("N") })
+        { Owner = HostWindow, ShowActivated = false, ShowInTaskbar = false, Opacity = 0 };
+        try
+        {
+            missing.Show();
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            await missing.WhenIdle;
+            missing.VerifyMissingProcess(report);
+        }
+        finally { missing.Close(); await missing.WhenIdle; }
+    }
 
     internal void SetPreviewData()
     {

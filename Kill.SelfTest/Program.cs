@@ -550,6 +550,8 @@ var tests = new List<(string Name, Func<Task> Run)>
 };
 
 tests.AddRange(NetworkMonitorChecks.All());
+tests.AddRange(NetworkHistoryChecks.All());
+tests.AddRange(StartupChecks.All());
 var failed = 0;
 Console.WriteLine("Kill 安全自检\n");
 foreach (var test in tests)

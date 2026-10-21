@@ -23,6 +23,8 @@
                                Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="HistoryButton" Content="连接历史" Style="{StaticResource SecondaryButton}" Margin="0,0,9,0"
+                            ToolTip="浏览各进程的连接历史；选中连接后可直接定位该进程" Click="HistoryButton_Click" />
                     <Button x:Name="StopButton" Content="停止监控" Style="{StaticResource SecondaryButton}" IsEnabled="False" Margin="0,0,9,0" Click="StopButton_Click" />
                     <Button x:Name="StartButton" Content="开始监控" Style="{StaticResource PrimaryButton}" Click="StartButton_Click" />
                 </StackPanel>
@@ -96,7 +98,7 @@
             </ScrollViewer>
         </Border>
         <Border Grid.Row="5" Background="#F0F2F4" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-            <TextBlock x:Name="StatusText" Text="未开始 · 每秒刷新 · 统计仅保留在本次窗口会话中" Margin="22,0" VerticalAlignment="Center" FontSize="12"
+            <TextBlock x:Name="StatusText" Text="未开始 · 每秒刷新 · 远端连接历史自动保存在本机" Margin="22,0" VerticalAlignment="Center" FontSize="12"
                        Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
         </Border>
     </Grid>

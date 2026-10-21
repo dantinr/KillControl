@@ -7,6 +7,11 @@ namespace Kill.Services;
 
 public sealed class NetworkMonitorClient : IAsyncDisposable
 {
+    private readonly NetworkHistoryRepository history;
+    private volatile string historyError = "";
+    public string SessionId { get; } = Guid.NewGuid().ToString("N");
+    public string HistoryError => historyError;
+    public NetworkMonitorClient(NetworkHistoryRepository? history = null) => this.history = history ?? new();
     private readonly CancellationTokenSource lifetime = new();
     private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private NamedPipeServerStream? pipe;
@@ -48,7 +53,11 @@ public sealed class NetworkMonitorClient : IAsyncDisposable
                 var message = Protocol.Deserialize<NetworkMessage>(line);
                 if (message is null) continue;
                 if (message.Type == "error") throw new IOException(message.Error ?? "网络采集失败。");
-                if (message.Snapshot is { } update) Volatile.Write(ref snapshot, update);
+                if (message.Snapshot is { } update)
+                {
+                    await SaveHistoryAsync(update);
+                    Volatile.Write(ref snapshot, update);
+                }
                 if (message.Type == "ready") { running = true; ready.TrySetResult(); }
                 if (message.Type == "completed") completed = true;
             }
@@ -61,7 +70,7 @@ public sealed class NetworkMonitorClient : IAsyncDisposable
             if (!completed && Snapshot is { Running: true } last)
             {
                 var time = DateTimeOffset.UtcNow;
-                Volatile.Write(ref snapshot, last with
+                var interrupted = last with
                 {
                     Running = false,
                     CapturedAtUtc = time,
@@ -75,7 +84,9 @@ public sealed class NetworkMonitorClient : IAsyncDisposable
                         ReceiveBytesPerSecond = 0,
                         Endpoint = flow.EndedAtUtc is null ? flow.Endpoint with { State = "COLLECTOR_INTERRUPTED" } : flow.Endpoint
                     }).ToArray()
-                });
+                };
+                await SaveHistoryAsync(interrupted);
+                Volatile.Write(ref snapshot, interrupted);
             }
             running = false;
             pipe?.Dispose();
@@ -83,6 +94,12 @@ public sealed class NetworkMonitorClient : IAsyncDisposable
     }
 
     public void CancelStartup() => lifetime.Cancel();
+
+    private async Task SaveHistoryAsync(NetworkSnapshot update)
+    {
+        try { await history.SaveAsync(SessionId, update, lifetime.Token); historyError = ""; }
+        catch (Exception exception) { historyError = "连接历史保存失败：" + exception.Message; }
+    }
 
     public async Task StopAsync()
     {

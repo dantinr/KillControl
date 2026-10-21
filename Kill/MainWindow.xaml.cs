@@ -13,16 +13,19 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _statusTimer;
     private readonly bool _diagnostics;
     private readonly string? _resourceDatabasePath;
+    private readonly string? _networkHistoryDatabasePath;
     private bool _closing;
     private bool _allowClose;
     private ResourceMonitorView? ResourceMonitor => _views.GetValueOrDefault("Resources") as ResourceMonitorView;
     private BehaviorMonitorView? BehaviorMonitor => _views.GetValueOrDefault("Behavior") as BehaviorMonitorView;
     private NetworkMonitorView? NetworkMonitor => _views.GetValueOrDefault("Network") as NetworkMonitorView;
 
-    public MainWindow(string initialModule = "Applications", bool diagnostics = false, string? resourceDatabasePath = null)
+    public MainWindow(string initialModule = "Applications", bool diagnostics = false, string? resourceDatabasePath = null, string? networkHistoryDatabasePath = null)
     {
         _diagnostics = diagnostics;
         _resourceDatabasePath = resourceDatabasePath;
+        _networkHistoryDatabasePath = networkHistoryDatabasePath ?? (diagnostics && resourceDatabasePath is not null
+            ? Path.Combine(Path.GetDirectoryName(resourceDatabasePath)!, "network-history.db") : null);
         InitializeComponent();
         Title = $"Kill Control {ProductInfo.DisplayVersion}";
         VersionText.Text = ProductInfo.DisplayVersion;
@@ -36,6 +39,7 @@ public partial class MainWindow : Window
         var tab = module switch
         {
             "Services" => ServicesTab,
+            "Startup" => StartupTab,
             "Resources" => ResourcesTab,
             "Network" => NetworkTab,
             "Behavior" => BehaviorTab,
@@ -49,8 +53,9 @@ public partial class MainWindow : Window
             view = module switch
             {
                 "Services" => new ServiceManagementView(),
+                "Startup" => new StartupManagementView(),
                 "Resources" => new ResourceMonitorView(_resourceDatabasePath),
-                "Network" => new NetworkMonitorView(),
+                "Network" => new NetworkMonitorView(_networkHistoryDatabasePath),
                 "Behavior" => new BehaviorMonitorView(_diagnostics),
                 "History" => new HistoryView(new CleanupCoordinator()),
                 _ => new ApplicationsView()

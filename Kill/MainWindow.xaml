@@ -50,6 +50,7 @@
             <StackPanel Orientation="Horizontal" Margin="18,0">
                 <RadioButton x:Name="ApplicationsTab" Content="应用管理" Tag="Applications" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
                 <RadioButton x:Name="ServicesTab" Content="服务管理" Tag="Services" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
+                <RadioButton x:Name="StartupTab" Content="开机启动" Tag="Startup" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
                 <RadioButton x:Name="ResourcesTab" Content="资源监控" Tag="Resources" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
                 <RadioButton x:Name="NetworkTab" Content="网络监控" Tag="Network" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />
                 <RadioButton x:Name="BehaviorTab" Content="行为监控" Tag="Behavior" Style="{StaticResource NavigationButton}" Checked="Navigation_Checked" GroupName="Workspace" />

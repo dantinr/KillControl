@@ -17,7 +17,8 @@ public sealed class NetworkFlowRow : INotifyPropertyChanged
     public string LocalEndpoint => NetworkAddress.Endpoint(Flow.Endpoint.LocalAddress, Flow.Endpoint.LocalPort);
     public string RemoteEndpoint => NetworkAddress.Endpoint(Flow.Endpoint.RemoteAddress, Flow.Endpoint.RemotePort);
     public bool IsEnded => Flow.EndedAtUtc is not null;
-    public string State => Flow.Endpoint.State switch
+    public string State => DescribeState(Flow.Endpoint.State);
+    public static string DescribeState(string state) => state switch
     {
         "LISTEN" => "监听",
         "ESTABLISHED" => "已连接",
@@ -36,7 +37,7 @@ public sealed class NetworkFlowRow : INotifyPropertyChanged
         "REPLACED" => "连接已替换",
         "MONITOR_STOPPED" => "监控已停止",
         "COLLECTOR_INTERRUPTED" => "采集已中断",
-        _ => Flow.Endpoint.State
+        _ => state
     };
     public long SentBytes => Flow.SentBytes;
     public long ReceivedBytes => Flow.ReceivedBytes;

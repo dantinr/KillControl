@@ -20,14 +20,18 @@ public partial class NetworkMonitorView : WorkspaceView
     private ICollectionView? view;
     private NetworkMonitorClient? client;
     private NetworkSnapshot? latest;
+    private string? displayedSessionId;
     private Task? startTask, stopTask, shutdownTask;
     private bool closing, starting;
+    private readonly NetworkHistoryRepository history;
+    private NetworkHistoryWindow? historyWindow;
     public bool IsMonitoring => client?.Running == true;
     internal bool CanStop => starting || IsMonitoring;
     internal NetworkSnapshot? LatestSnapshot => latest;
 
-    public NetworkMonitorView()
+    public NetworkMonitorView(string? historyDatabasePath = null)
     {
+        history = new(historyDatabasePath);
         InitializeComponent();
         ConnectionsGrid.ItemsSource = rows;
         view = CollectionViewSource.GetDefaultView(rows);
@@ -52,7 +56,7 @@ public partial class NetworkMonitorView : WorkspaceView
         StopButton.IsEnabled = true;
         StopButton.Content = "取消启动";
         StatusText.Text = "正在等待 Windows 授权并启动网络采集…";
-        var next = new NetworkMonitorClient();
+        var next = new NetworkMonitorClient(history);
         try
         {
             if (client is not null) await client.DisposeAsync();
@@ -113,7 +117,11 @@ public partial class NetworkMonitorView : WorkspaceView
 
     private void RefreshFromClient()
     {
-        if (client?.Snapshot is { } snapshot && !ReferenceEquals(latest, snapshot)) ApplySnapshot(snapshot);
+        if (client?.Snapshot is { } snapshot && !ReferenceEquals(latest, snapshot))
+        {
+            displayedSessionId = client.SessionId;
+            ApplySnapshot(snapshot);
+        }
         if (client is { Running: false } && !starting)
         {
             timer.Stop();
@@ -121,6 +129,8 @@ public partial class NetworkMonitorView : WorkspaceView
             StopButton.IsEnabled = false;
             if (!string.IsNullOrEmpty(client.Error)) StatusText.Text = client.Error;
         }
+        if (!string.IsNullOrEmpty(client?.HistoryError) && !StatusText.Text.Contains(client.HistoryError, StringComparison.Ordinal))
+            StatusText.Text += " · " + client.HistoryError;
     }
 
     internal void ApplySnapshot(NetworkSnapshot snapshot)
@@ -184,6 +194,22 @@ public partial class NetworkMonitorView : WorkspaceView
     }
 
     private void ConnectionsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateDetails();
+    private NetworkHistoryProcessKey? SelectedHistoryProcess => ConnectionsGrid.SelectedItem is NetworkFlowRow row && displayedSessionId is not null
+        ? new(displayedSessionId, row.Flow.Process.Id, row.Flow.Process.StartTimeUtcTicks) : null;
+    private async void HistoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var preferred = SelectedHistoryProcess;
+        if (historyWindow is { IsVisible: true })
+        {
+            historyWindow.Activate();
+            if (preferred is not null) await historyWindow.SelectProcessAsync(preferred);
+            return;
+        }
+        historyWindow = new NetworkHistoryWindow(history, preferred) { Owner = HostWindow };
+        historyWindow.Show();
+    }
+
+    internal NetworkHistoryRepository HistoryRepository => history;
     private void UpdateDetails()
     {
         if (ConnectionsGrid.SelectedItem is NetworkFlowRow row) DetailText.Text = row.Detail;
@@ -194,6 +220,7 @@ public partial class NetworkMonitorView : WorkspaceView
     private async Task ShutdownCoreAsync()
     {
         closing = true;
+        if (historyWindow is not null) { historyWindow.Close(); await historyWindow.WhenIdle; }
         if (starting) client?.CancelStartup();
         await StopFromShellAsync();
         if (client is not null) { await client.DisposeAsync(); client = null; }

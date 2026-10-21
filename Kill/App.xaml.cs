@@ -41,6 +41,13 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Length == 2 && e.Args[0] == "--startup-action")
+        {
+            RunWorker(() => StartupActionCoordinator.RunWorkerAsync(e.Args[1]));
+            Shutdown();
+            return;
+        }
+
         if (e.Args.Length == 2 && e.Args[0] == "--verify-network")
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -68,6 +75,7 @@ public partial class App : Application
         var module = e.Args.FirstOrDefault()?.ToLowerInvariant() switch
         {
             "--services" => "Services",
+            "--startup" => "Startup",
             "--resources" => "Resources",
             "--network" => "Network",
             "--behavior" => "Behavior",

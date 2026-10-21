@@ -12,7 +12,10 @@ internal static class NetworkDiagnostics
     {
         var lines = new List<string>();
         var fixtures = new List<LoopbackFixture>();
-        var window = new MainWindow("Network", true) { ShowActivated = false, ShowInTaskbar = false, Opacity = 0 };
+        string directory = Path.Combine(Path.GetTempPath(), "Kill-network-live-" + Guid.NewGuid().ToString("N"));
+        string historyPath = Path.Combine(directory, "network-history.db");
+        var window = new MainWindow("Network", true, Path.Combine(directory, "resource.db"), historyPath)
+        { ShowActivated = false, ShowInTaskbar = false, Opacity = 0 };
         int result = 1;
         try
         {
@@ -60,6 +63,13 @@ internal static class NetworkDiagnostics
             await window.CloseForDiagnosticsAsync();
             Check(!network.IsMonitoring && network.LatestSnapshot is { Running: false } stopped && stopped.Flows.All(flow => flow.EndedAtUtc is not null),
                 "closing the main window drains the collector and freezes all observations");
+            var history = new Services.NetworkHistoryRepository(historyPath);
+            var processes = await history.LoadProcessesAsync(Environment.ProcessId.ToString());
+            var self = processes.Rows.Single(process => process.Key.ProcessId == Environment.ProcessId);
+            var saved = await history.LoadConnectionsAsync(self.Id, limit: 500);
+            Check(fixtures.All(fixture => saved.Rows.Any(row => fixture.MatchesHistory(row) && row.EndedAtUtc is not null &&
+                row.SentBytes == fixture.Sent && row.ReceivedBytes == fixture.Received)),
+                "all four exact remote endpoint histories and final byte totals survive reopening the database");
             foreach (var fixture in fixtures) await fixture.ExchangeAsync();
             Check(true, "stopping monitoring preserves all fixture sockets and their transfers");
             result = 0;
@@ -70,6 +80,8 @@ internal static class NetworkDiagnostics
             try { if (window.IsVisible) await window.CloseForDiagnosticsAsync(); }
             catch (Exception exception) { lines.Add("FAIL: cleanup: " + exception); result = 1; }
             foreach (var fixture in fixtures) fixture.Dispose();
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(reportPath))!);
             await File.WriteAllLinesAsync(reportPath, lines);
             app.Shutdown(result);
@@ -127,6 +139,9 @@ internal static class NetworkDiagnostics
 
         internal bool Related(NetworkFlow flow) => flow.Endpoint.Protocol == protocol &&
             (flow.Endpoint.LocalPort == localPort || flow.Endpoint.LocalPort == remotePort || flow.Endpoint.RemotePort == localPort || flow.Endpoint.RemotePort == remotePort);
+
+        internal bool MatchesHistory(Models.NetworkHistoryConnection row) => row.Protocol == protocol.ToString() &&
+            row.LocalAddress == address.ToString() && row.LocalPort == localPort && row.RemoteAddress == address.ToString() && row.RemotePort == remotePort;
 
         internal async Task ExchangeAsync()
         {
