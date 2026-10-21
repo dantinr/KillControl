@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -20,7 +20,7 @@
     <Product>Kill Control</Product>
     <AssemblyTitle>Kill Control</AssemblyTitle>
     <Authors>Kill</Authors>
-    <Description>安全、透明的 Windows 应用卸载、服务管理与资源监控工具</Description>
+    <Description>Windows 应用管理、服务管理、资源与行为监控工具</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <LicenseFile>$(MSBuildProjectDirectory)\..\LICENSE</LicenseFile>
     <ThirdPartyNoticesFile>$(MSBuildProjectDirectory)\..\THIRD_PARTY.md</ThirdPartyNoticesFile>
@@ -36,6 +36,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+    <ProjectReference Include="../BehaviorMonitor/UI/ProcessSentinel.App.csproj" />
+    <ProjectReference Include="../BehaviorMonitor/Collector/ProcessSentinel.Collector.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -57,6 +59,11 @@
     <UpToDateCheckInput Include="$(DotNetRuntimeNoticesFile)" Condition="Exists('$(DotNetRuntimeNoticesFile)')" />
     <UpToDateCheckInput Include="$(WpfNoticesFile)" Condition="Exists('$(WpfNoticesFile)')" />
   </ItemGroup>
+
+  <Target Name="CopyBehaviorCollector" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true'">
+    <ItemGroup><BehaviorCollectorFiles Include="$(MSBuildProjectDirectory)/../BehaviorMonitor/Collector/bin/$(Configuration)/net10.0-windows/$(RuntimeIdentifier)/*" /></ItemGroup>
+    <Copy SourceFiles="@(BehaviorCollectorFiles)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+  </Target>
 
   <Target Name="ValidateVersionFile" BeforeTargets="PrepareForBuild">
     <Error Condition="!Exists('$(VersionFile)')" Text="缺少版本文件：$(VersionFile)" />

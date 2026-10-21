@@ -1,4 +1,8 @@
 <Solution>
   <Project Path="Kill.SelfTest/Kill.SelfTest.csproj" />
   <Project Path="Kill/Kill.csproj" />
+  <Project Path="BehaviorMonitor/Core/ProcessSentinel.Core.csproj" />
+  <Project Path="BehaviorMonitor/UI/ProcessSentinel.App.csproj" />
+  <Project Path="BehaviorMonitor/Collector/ProcessSentinel.Collector.csproj" />
+  <Project Path="BehaviorMonitor.SelfTest/ProcessSentinel.SelfTest.csproj" />
 </Solution>

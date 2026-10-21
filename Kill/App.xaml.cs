@@ -1,4 +1,4 @@
-﻿using System.Configuration;
+using System.Configuration;
 using System.Data;
 using System.Windows;
 using Kill.Services;
@@ -41,19 +41,33 @@ public partial class App : Application
             return;
         }
 
-        if (e.Args.Length >= 1 && e.Args[0].Equals("--services", StringComparison.OrdinalIgnoreCase))
+        if (e.Args.Length == 3 && e.Args[0] == "--verify-collector")
         {
-            new ServiceManagementWindow { ShowInTaskbar = true }.Show();
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            _ = IntegrationDiagnostics.VerifyCollectorAsync(this, e.Args[1], e.Args[2]);
             return;
         }
-
-        if (e.Args.Length >= 1 && e.Args[0].Equals("--resources", StringComparison.OrdinalIgnoreCase))
+        if (e.Args.Length >= 2 && e.Args[0] == "--verify-ui")
         {
-            new ResourceMonitorWindow { ShowInTaskbar = true }.Show();
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            _ = IntegrationDiagnostics.RunAsync(this, e.Args[1]);
             return;
         }
-
-        new MainWindow().Show();
+        if (e.Args.Length >= 2 && e.Args[0] == "--render-preview")
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            _ = IntegrationDiagnostics.RenderAsync(this, e.Args[1], e.Args.ElementAtOrDefault(2) ?? "Behavior");
+            return;
+        }
+        var module = e.Args.FirstOrDefault()?.ToLowerInvariant() switch
+        {
+            "--services" => "Services",
+            "--resources" => "Resources",
+            "--behavior" => "Behavior",
+            "--history" => "History",
+            _ => "Applications"
+        };
+        new MainWindow(module).Show();
     }
 
     internal static void RunWorker(Func<Task> worker) => Task.Run(worker).GetAwaiter().GetResult();

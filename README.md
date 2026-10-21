@@ -1,6 +1,14 @@
 # Kill Control
 
-Kill Control 是一款面向 Windows 的应用卸载、残留复核、后台服务管理和资源监控工具，使用 Visual Studio 2026、.NET 10 和 WPF 开发。程序文件仍使用 `Kill.exe`，产品名称为 **Kill Control**；当前版本号由仓库根目录的 `VERSION` 文件统一管理，并显示在程序主界面和窗口标题中。
+Kill Control 是一款面向 Windows 的应用卸载、残留复核、后台服务管理、资源监控和程序行为监控工具，使用 Visual Studio 2026、.NET 10 和 WPF 开发。程序文件仍使用 `Kill.exe`，产品名称为 **Kill Control**；当前版本号由仓库根目录的 `VERSION` 文件统一管理，并显示在程序主界面和窗口标题中。
+
+## 合并版 1.2.11
+
+Kill Control 与行为哨兵 ProcessSentinel 现已合并。主窗口统一提供“应用管理 / 服务管理 / 资源监控 / 行为监控 / 隔离记录”，行为监控直接内嵌在本程序中。切换页面保留监控会话，顶部提供监控状态与停止全部监控；关闭程序时等待后台采集、日志保存及管理操作完成。
+
+便携包仅需启动 `Kill.exe` 或对应版本化入口。`ProcessSentinel.Collector.exe` 是按需提权的内部采集组件，请保留整个发布目录。原始 `processSentinel` 仓库与其已发布版本未修改。
+
+行为监控支持四个程序并发、完整进程树、文件/网络/注册表/模块记录、按进程出网统计、独立风险复核和日志导出。设置和日志目录兼容原版，详见 [行为监控说明](docs/BEHAVIOR_MONITOR.md)。
 
 ## 核心功能
 
@@ -74,7 +82,7 @@ Kill Control 因此采用保守策略：
 | 资源监控数据库 | `<程序目录>\data\kill-monitor.db` |
 | 其他磁盘隔离文件 | `<磁盘根目录>\Kill Quarantine` |
 
-恢复操作不会覆盖原位置已经存在的内容。其他磁盘使用同卷隔离目录，避免跨卷移动造成额外复制或中断风险。
+恢复操作不会覆盖原位置已经存在的内容。清理请求/响应、操作标识、历史清单及隔离副本均由提权工作进程重新校验；恢复注册表时只允许导入原键范围内的备份，并保留已经存在的键。其他磁盘使用同卷隔离目录，避免跨卷移动造成额外复制或中断风险。
 
 ## 项目结构
 
@@ -117,14 +125,15 @@ dotnet format .\Kill.slnx --verify-no-changes --verbosity minimal
 dotnet run --project .\Kill.SelfTest\Kill.SelfTest.csproj -c Release
 ```
 
-生成自包含的 Windows x64 单文件版本：
+生成自包含的 Windows x64 合并版便携包（包括内部采集器）：
 
 ```powershell
-$version = (Get-Content .\VERSION -Raw).Trim()
-dotnet publish .\Kill\Kill.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o ".\Releases\Kill-portable-win-x64-v$version"
+.\build.ps1 -Package
 ```
 
-每个版本使用独立发布目录，其中同时包含 `Kill.exe`、`Kill-v<版本号>.exe`、`VERSION`、`LICENSE`、`THIRD_PARTY.md` 和 `third-party\` 中的版本锁定声明。两个 EXE 是哈希一致的自包含单文件；更新 `VERSION` 后重新发布不会覆盖其他版本目录。
+脚本先检查格式、构建、运行两套自检和统一界面回归，再发布到 `Releases\Kill-portable-win-x64-v<VERSION>\` 并生成同名 ZIP。主程序和采集器分别为自包含单文件，固定使用 .NET/WPF 10.0.11，主程序保留 `Kill.exe` 与哈希一致的版本化入口，同时携带许可和使用说明。每个产品版本使用独立目录。
+
+只构建并验证可执行 `build.ps1`。现有隔离、服务记录及行为设置保留原位置；资源历史仍位于 `<程序目录>\data\kill-monitor.db`。换到新版本目录时，如需沿用资源历史，请在原程序关闭后手动复制 `data` 目录，避免覆盖新目录已有数据。
 
 `Releases/`、`artifacts/`、`bin/`、`obj/` 和 Visual Studio 用户文件已由 `.gitignore` 排除。
 

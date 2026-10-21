@@ -65,9 +65,9 @@ Kill Control must remain conservative, transparent, and recoverable wherever rec
 - `KillPaths`: owns persistent and temporary path conventions. Do not duplicate these paths in feature code.
 - `ConfirmationWindow`: shared risk confirmation UI. Service actions should use the internal service name as the typed confirmation value.
 
-Keep UI code in the WPF windows, system discovery and mutation logic in `Services/`, and transport models in `Models/`. Reuse existing styles in `Kill/Themes/Styles.xaml`.
+Keep UI code in the WPF windows and workspace views, system discovery and mutation logic in `Services/`, and transport models in `Models/`. Reuse existing styles in `Kill/Themes/Styles.xaml`.
 
-Resource monitoring must remain opt-in and scoped to the lifetime of the resource-monitor window. Do not turn it into a hidden startup task or service without an explicit product change. Its database belongs in `<program directory>\data`; never commit local database files.
+Resource monitoring must remain opt-in and scoped to the lifetime of the unified main window after the user explicitly starts monitoring. Do not turn it into a hidden startup task or service without an explicit product change. Its database belongs in `<program directory>\data`; never commit local database files.
 
 Process rankings are live, read-only data and are not persisted. Label `GetProcessIoCounters` values as process I/O, not disk-only or network throughput. Do not claim per-process network monitoring unless a separate, reliable data source is implemented and verified.
 
@@ -112,3 +112,11 @@ For release packaging, use the publish command documented in `README.md`. Build 
 - Keep comments succinct and reserve them for non-obvious safety decisions.
 - Do not commit `bin/`, `obj/`, `.vs/`, `artifacts/`, generated test output, or local Kill Control data.
 - Do not create a commit unless the user explicitly requests one.
+
+## Unified application
+
+`Kill/MainWindow` owns cached workspace views for applications, services, resources, behavior and quarantine history. Navigation must preserve started sessions; closing waits for management work, cancels pending starts and stops/disposes all monitors. Do not use UserControl.Unloaded as an exit signal. Behavior UI resources live in a scoped dictionary under `BehaviorMonitor/UI/Themes`; do not merge implicit behavior styles globally.
+
+`BehaviorMonitor/Core` preserves the ETW implementation; `BehaviorMonitor/UI` is an in-process WPF library, and `BehaviorMonitor/Collector` remains a separate elevated internal worker. The root VERSION is the only version source for all projects. Preserve legacy ProcessSentinel settings/log paths and the same-user pipe ACL/peer-PID checks. Treat the suite entry point (including its versioned name) as a program-tree boundary. Risk clues must never trigger cleanup or service changes automatically.
+
+Additional checks: run `dotnet run --project .\BehaviorMonitor.SelfTest\ProcessSentinel.SelfTest.csproj -c Release --no-build`, then `Releases\Kill.exe --verify-ui <report path>`. UI diagnostics inject a unique temporary resource database. For packaging use `build.ps1 -Package`, which publishes both self-contained entries and all notices. A real collector probe is separate from replay tests and must target only its own temporary file fixture, never a user process or registry/service mutation.

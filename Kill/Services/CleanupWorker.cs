@@ -20,10 +20,18 @@ public static class CleanupWorker
     private static async Task ExecuteCleanupRequestAsync(string requestPath, bool isPermanent)
     {
         CleanupRequest? request = null;
+        bool responseValidated = false;
         try
         {
+            WorkerInputPolicy.ValidateTemporaryPath(requestPath);
             request = JsonSerializer.Deserialize<CleanupRequest>(await File.ReadAllTextAsync(requestPath), JsonOptions)
                       ?? throw new InvalidDataException("清理请求无效。");
+            WorkerInputPolicy.ValidateTemporaryPath(request.ResponsePath);
+            if (SafetyPolicy.PathsEqual(requestPath, request.ResponsePath)) throw new InvalidDataException("请求与响应不能使用同一个文件。");
+            responseValidated = true;
+            WorkerInputPolicy.ValidateOperationId(request.OperationId);
+            if (string.IsNullOrWhiteSpace(request.ApplicationName)) throw new InvalidDataException("缺少应用名称。");
+            foreach (var candidate in request.Items) WorkerInputPolicy.ValidateItem(candidate);
             var manifest = new OperationManifest
             {
                 OperationId = request.OperationId,
@@ -41,13 +49,13 @@ public static class CleanupWorker
                     if (isPermanent)
                     {
                         entry = item.Kind == CleanupItemKind.RegistryKey
-                            ? PermanentlyDeleteRegistry(item)
+                            ? PermanentlyDeleteRegistry(item, request.ApplicationName)
                             : PermanentlyDeleteFileSystem(item);
                     }
                     else
                     {
                         entry = item.Kind == CleanupItemKind.RegistryKey
-                            ? await QuarantineRegistryAsync(request.OperationId, item)
+                            ? await QuarantineRegistryAsync(request.OperationId, item, request.ApplicationName)
                             : QuarantineFileSystem(request.OperationId, item);
                     }
                     if (entry is not null) manifest.Entries.Add(entry);
@@ -74,7 +82,7 @@ public static class CleanupWorker
         }
         catch (Exception exception)
         {
-            if (request is not null)
+            if (request is not null && responseValidated)
             {
                 await WriteResponseAsync(request.ResponsePath, new WorkerResponse
                 {
@@ -88,10 +96,15 @@ public static class CleanupWorker
 
     public static async Task ExecuteRestoreAsync(string manifestPath, string responsePath)
     {
+        bool responseValidated = false;
         try
         {
+            WorkerInputPolicy.ValidateTemporaryPath(responsePath);
+            responseValidated = true;
+            WorkerInputPolicy.ValidateHistoryPath(manifestPath);
             var manifest = JsonSerializer.Deserialize<OperationManifest>(await File.ReadAllTextAsync(manifestPath), JsonOptions)
                            ?? throw new InvalidDataException("隔离记录无效。");
+            WorkerInputPolicy.ValidateManifestPath(manifestPath, manifest.OperationId);
             if (manifest.IsPermanent)
             {
                 await WriteResponseAsync(responsePath, new WorkerResponse
@@ -109,8 +122,16 @@ public static class CleanupWorker
             {
                 try
                 {
+                    WorkerInputPolicy.ValidateRestoreEntry(manifest.OperationId, entry);
                     if (entry.Kind == CleanupItemKind.RegistryKey)
+                    {
+                        var (hive, relativePath) = ParseAndValidateRegistryTarget(entry.OriginalTarget);
+                        using var baseKey = RegistryKey.OpenBaseKey(hive, ParseRegistryView(entry.RegistryViewName));
+                        using var existing = baseKey.OpenSubKey(relativePath);
+                        if (existing is not null) throw new IOException("注册表原位置已存在，未覆盖现有数据。");
+                        WorkerInputPolicy.ValidateRegistryBackup(entry.BackupTarget, entry.OriginalTarget);
                         await ImportRegistryAsync(entry.BackupTarget, entry.RegistryViewName);
+                    }
                     else
                         RestoreFileSystem(entry);
                     entry.Restored = true;
@@ -135,6 +156,7 @@ public static class CleanupWorker
         }
         catch (Exception exception)
         {
+            if (!responseValidated) return;
             await WriteResponseAsync(responsePath, new WorkerResponse
             {
                 Success = false,
@@ -171,10 +193,11 @@ public static class CleanupWorker
         };
     }
 
-    private static async Task<OperationEntry?> QuarantineRegistryAsync(string operationId, CleanupCandidateDto item)
+    private static async Task<OperationEntry?> QuarantineRegistryAsync(string operationId, CleanupCandidateDto item, string applicationName)
     {
         var (hive, relativePath) = ParseAndValidateRegistryTarget(item.Target);
         var view = ParseRegistryView(item.RegistryViewName);
+        ValidateRegistryOwnership(item.Target, applicationName, hive, relativePath, view);
         using var baseKey = RegistryKey.OpenBaseKey(hive, view);
         using var existing = baseKey.OpenSubKey(relativePath);
         if (existing is null) return null;
@@ -216,10 +239,11 @@ public static class CleanupWorker
         };
     }
 
-    private static OperationEntry? PermanentlyDeleteRegistry(CleanupCandidateDto item)
+    private static OperationEntry? PermanentlyDeleteRegistry(CleanupCandidateDto item, string applicationName)
     {
         var (hive, relativePath) = ParseAndValidateRegistryTarget(item.Target);
         var view = ParseRegistryView(item.RegistryViewName);
+        ValidateRegistryOwnership(item.Target, applicationName, hive, relativePath, view);
         using var baseKey = RegistryKey.OpenBaseKey(hive, view);
         using (var existing = baseKey.OpenSubKey(relativePath))
         {
@@ -259,7 +283,7 @@ public static class CleanupWorker
         else File.Move(entry.BackupTarget, entry.OriginalTarget);
     }
 
-    private static (RegistryHive Hive, string RelativePath) ParseAndValidateRegistryTarget(string target)
+    internal static (RegistryHive Hive, string RelativePath) ParseAndValidateRegistryTarget(string target)
     {
         var normalized = target.Replace('/', '\\').Trim().TrimEnd('\\');
         var parts = normalized.Split('\\', StringSplitOptions.RemoveEmptyEntries);
@@ -272,11 +296,38 @@ public static class CleanupWorker
             "HKLM" => RegistryHive.LocalMachine,
             _ => throw new InvalidOperationException("不允许操作此注册表配置单元。")
         };
+        if (parts[2].Equals("Classes", StringComparison.OrdinalIgnoreCase)
+            || parts[2].Equals("Policies", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("安全策略保护共享注册表配置。");
+        if (parts.Length == 3 && (parts[2].Equals("Microsoft", StringComparison.OrdinalIgnoreCase)
+            || parts[2].Equals("WOW6432Node", StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("安全策略保护共享注册表根键。");
+        string relative = string.Join('\\', parts.Skip(1));
+        if (relative.StartsWith(@"SOFTWARE\Microsoft\Windows", StringComparison.OrdinalIgnoreCase)
+            && !relative.StartsWith(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("安全策略保护 Windows 注册表配置。");
         return (hive, string.Join('\\', parts.Skip(1)));
     }
 
+    private static void ValidateRegistryOwnership(string target, string applicationName, RegistryHive hive,
+        string relativePath, RegistryView view)
+    {
+        string[] parts = relativePath.Split('\\');
+        if (parts.Length is 2 or 3 && SafetyPolicy.IsStrongNameMatch(parts[^1], applicationName)) return;
+        const string uninstall = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\";
+        if (relativePath.StartsWith(uninstall, StringComparison.OrdinalIgnoreCase)
+            && !relativePath[uninstall.Length..].Contains('\\'))
+        {
+            using var baseKey = RegistryKey.OpenBaseKey(hive, view);
+            using var key = baseKey.OpenSubKey(relativePath);
+            if (key is null || SafetyPolicy.IsStrongNameMatch(key.GetValue("DisplayName") as string ?? "", applicationName)) return;
+        }
+        throw new InvalidOperationException("无法确认此注册表项属于所选应用：" + target);
+    }
+
     private static RegistryView ParseRegistryView(string name) =>
-        Enum.TryParse<RegistryView>(name, out var view) ? view : RegistryView.Default;
+        Enum.TryParse<RegistryView>(name, out var view) && Enum.IsDefined(view)
+            ? view : throw new InvalidDataException("注册表视图无效。");
 
     private static async Task ExportRegistryAsync(string target, string destination, RegistryView view)
     {

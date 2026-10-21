@@ -1,297 +1,126 @@
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Media;
-using Kill.Models;
+using System.Windows.Threading;
 using Kill.Services;
-using Microsoft.Win32;
+using ProcessSentinel.App;
 
 namespace Kill;
 
 public partial class MainWindow : Window
 {
-    private readonly ApplicationDiscoveryService _discoveryService = new();
-    private readonly InstallDirectoryIdentificationService _directoryIdentificationService = new();
-    private readonly UninstallService _uninstallService = new();
-    private readonly ResidueScanner _residueScanner = new();
-    private readonly CleanupCoordinator _cleanupCoordinator = new();
-    private readonly ObservableCollection<InstalledApplication> _applications = [];
-    private ICollectionView? _applicationsView;
-    private CancellationTokenSource? _refreshCancellation;
+    private readonly Dictionary<string, FrameworkElement> _views = new();
+    private readonly DispatcherTimer _statusTimer;
+    private readonly bool _diagnostics;
+    private readonly string? _resourceDatabasePath;
+    private bool _closing;
+    private bool _allowClose;
+    private ResourceMonitorView? ResourceMonitor => _views.GetValueOrDefault("Resources") as ResourceMonitorView;
+    private BehaviorMonitorView? BehaviorMonitor => _views.GetValueOrDefault("Behavior") as BehaviorMonitorView;
 
-    public MainWindow()
+    public MainWindow(string initialModule = "Applications", bool diagnostics = false, string? resourceDatabasePath = null)
     {
+        _diagnostics = diagnostics;
+        _resourceDatabasePath = resourceDatabasePath;
         InitializeComponent();
         Title = $"Kill Control {ProductInfo.DisplayVersion}";
         VersionText.Text = ProductInfo.DisplayVersion;
+        _statusTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(500), DispatcherPriority.Background,
+            (_, _) => UpdateMonitoringStatus(), Dispatcher);
+        Navigate(initialModule);
     }
 
-    private async void Window_Loaded(object sender, RoutedEventArgs e) => await RefreshApplicationsAsync();
-    private async void RefreshButton_Click(object sender, RoutedEventArgs e) => await RefreshApplicationsAsync();
-
-    private async Task RefreshApplicationsAsync()
+    internal FrameworkElement Navigate(string module)
     {
-        _refreshCancellation?.Cancel();
-        _refreshCancellation = new CancellationTokenSource();
-        var selectedId = SelectedApplication?.Id;
-        SetBusy(true, "正在读取已安装应用…");
-        try
+        var tab = module switch
         {
-            var applications = await _discoveryService.GetApplicationsAsync(_refreshCancellation.Token);
-            _applications.Clear();
-            foreach (var application in applications) _applications.Add(application);
-            ApplicationsList.ItemsSource = _applications;
-            _applicationsView = CollectionViewSource.GetDefaultView(_applications);
-            _applicationsView.Filter = FilterApplication;
-            ApplyFilter();
-            ApplicationsList.SelectedItem = _applications.FirstOrDefault(app => app.Id == selectedId) ?? _applications.FirstOrDefault();
-            SetStatus($"已读取 {_applications.Count} 个应用");
-        }
-        catch (OperationCanceledException)
-        {
-            SetStatus("刷新已取消");
-        }
-        catch (Exception exception)
-        {
-            SetStatus("读取应用列表失败", true);
-            MessageBox.Show(this, exception.Message, "无法读取应用", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-        finally
-        {
-            SetBusy(false);
-        }
-    }
-
-    private InstalledApplication? SelectedApplication => ApplicationsList.SelectedItem as InstalledApplication;
-
-    private bool FilterApplication(object item)
-    {
-        if (item is not InstalledApplication application) return false;
-        var query = SearchBox.Text.Trim();
-        if (!string.IsNullOrWhiteSpace(query) &&
-            !application.DisplayName.Contains(query, StringComparison.CurrentCultureIgnoreCase) &&
-            !application.Publisher.Contains(query, StringComparison.CurrentCultureIgnoreCase) &&
-            !application.Version.Contains(query, StringComparison.CurrentCultureIgnoreCase)) return false;
-
-        var tag = (KindFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
-        return tag switch
-        {
-            "Desktop" => application.Kind == ApplicationKind.Desktop,
-            "Store" => application.Kind == ApplicationKind.Store,
-            _ => true
+            "Services" => ServicesTab,
+            "Resources" => ResourcesTab,
+            "Behavior" => BehaviorTab,
+            "History" => HistoryTab,
+            _ => ApplicationsTab
         };
-    }
-
-    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        SearchHint.Visibility = string.IsNullOrEmpty(SearchBox.Text) ? Visibility.Visible : Visibility.Collapsed;
-        ApplyFilter();
-    }
-
-    private void KindFilter_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyFilter();
-
-    private void ApplyFilter()
-    {
-        _applicationsView?.Refresh();
-        if (_applicationsView is null) return;
-        var visible = _applicationsView.Cast<object>().Count();
-        AppCountText.Text = visible == _applications.Count ? $"共 {_applications.Count} 个应用" : $"显示 {visible} / {_applications.Count}";
-    }
-
-    private void ApplicationsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        var selected = SelectedApplication;
-        EmptyState.Visibility = selected is null ? Visibility.Visible : Visibility.Collapsed;
-        DetailPanel.Visibility = selected is null ? Visibility.Collapsed : Visibility.Visible;
-        if (selected is null) return;
-        UninstallButton.IsEnabled = selected.CanUninstall;
-        CannotUninstallText.Visibility = selected.CanUninstall ? Visibility.Collapsed : Visibility.Visible;
-        InstallDateValue.Text = string.IsNullOrWhiteSpace(selected.InstallDate) ? "未知" : selected.InstallDate;
-    }
-
-    private async void UninstallButton_Click(object sender, RoutedEventArgs e)
-    {
-        var application = SelectedApplication;
-        if (application is not null) await RunUninstallAsync(application);
-    }
-
-    private async void IdentifyDirectoryButton_Click(object sender, RoutedEventArgs e)
-    {
-        var folderDialog = new OpenFolderDialog
+        module = (string)tab.Tag;
+        if (tab.IsChecked != true) tab.IsChecked = true;
+        if (!_views.TryGetValue(module, out var view))
         {
-            Title = "选择软件的安装目录",
-            Multiselect = false
-        };
-        if (folderDialog.ShowDialog(this) != true) return;
-
-        var selectedDirectory = folderDialog.FolderName;
-        if (!Directory.Exists(selectedDirectory))
-        {
-            MessageBox.Show(this, "所选目录已不存在。", "无法识别", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            view = module switch
+            {
+                "Services" => new ServiceManagementView(),
+                "Resources" => new ResourceMonitorView(_resourceDatabasePath),
+                "Behavior" => new BehaviorMonitorView(_diagnostics),
+                "History" => new HistoryView(new CleanupCoordinator()),
+                _ => new ApplicationsView()
+            };
+            _views.Add(module, view);
+            Workspace.Children.Add(view);
         }
+        foreach (var page in _views.Values) page.Visibility = ReferenceEquals(page, view) ? Visibility.Visible : Visibility.Collapsed;
+        if (view is HistoryView history) history.RefreshHistory();
+        return view;
+    }
 
-        IReadOnlyList<InstallDirectoryMatch> matches;
+    private void Navigation_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is RadioButton { Tag: string module } && Workspace is not null) Navigate(module);
+    }
+
+    private void UpdateMonitoringStatus()
+    {
+        int behaviorCount = BehaviorMonitor?.RunningSessionCount ?? 0;
+        bool resourcesRunning = ResourceMonitor?.IsMonitoring == true;
+        MonitoringStatus.Text = $"资源：{(resourcesRunning ? "监控中" : "未开始")}   ·   行为：{behaviorCount} 个程序";
+        StopMonitoringButton.IsEnabled = !_closing && (resourcesRunning || behaviorCount > 0);
+    }
+
+    private async void StopMonitoring_Click(object sender, RoutedEventArgs e)
+    {
+        StopMonitoringButton.IsEnabled = false;
         try
         {
-            matches = _directoryIdentificationService.FindMatches(selectedDirectory, _applications);
+            if (BehaviorMonitor is { } behavior) await behavior.StopAllMonitoringAsync();
+            if (ResourceMonitor is { } resources) await resources.StopFromShellAsync();
         }
         catch (Exception exception)
         {
-            SetStatus("所选目录不允许用于识别", true);
-            MessageBox.Show(this, exception.Message, "无法识别", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            MessageBox.Show(this, exception.Message, "停止监控", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
-
-        if (matches.Count == 0)
-        {
-            SetStatus("没有找到与所选目录明确对应的应用");
-            MessageBox.Show(this,
-                "没有找到安装位置、显示图标或官方卸载器路径与该目录明确对应的桌面应用。Kill 不会根据文件夹名称猜测应用归属。",
-                "未识别到应用", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        var matchWindow = new InstallDirectoryMatchWindow(selectedDirectory, matches) { Owner = this };
-        if (matchWindow.ShowDialog() != true || matchWindow.SelectedMatch is not { } selectedMatch) return;
-
-        RevealApplication(selectedMatch.Application);
-        await RunUninstallAsync(selectedMatch.Application, selectedMatch);
+        finally { UpdateMonitoringStatus(); }
     }
 
-    private void RevealApplication(InstalledApplication application)
+    private async void Window_Closing(object? sender, CancelEventArgs e)
     {
-        SearchBox.Clear();
-        KindFilter.SelectedIndex = 0;
-        ApplicationsList.SelectedItem = application;
-        ApplicationsList.ScrollIntoView(application);
-    }
-
-    private async Task RunUninstallAsync(InstalledApplication application, InstallDirectoryMatch? directoryMatch = null)
-    {
-        var isDirectoryMatch = directoryMatch is not null;
-
-        var warning = application.IsProtected
-            ? "此应用的安装位置涉及 Windows 保护区域。卸载可能影响系统组件或依赖它的其他程序。"
-            : isDirectoryMatch
-                ? $"所选目录：{directoryMatch!.DirectoryPath}\n匹配依据：{directoryMatch.EvidenceLabel}\n\nKill 只会启动该应用登记的官方卸载程序。"
-                : "Kill 将启动该应用自己登记的官方卸载程序。请在卸载程序中再次核对所选组件。";
-        var confirmation = new ConfirmationWindow(
-            isDirectoryMatch ? "确认根据目录卸载" : "确认运行官方卸载",
-            $"即将卸载“{application.DisplayName}”", warning,
-            application.IsProtected || isDirectoryMatch ? application.DisplayName : null, "继续卸载")
-        { Owner = this };
-        if (confirmation.ShowDialog() != true) return;
-
-        SetBusy(true, $"正在等待 {application.DisplayName} 的卸载程序…");
-        UninstallButton.IsEnabled = false;
+        if (_allowClose) return;
+        e.Cancel = true;
+        if (_closing) return;
+        _closing = true;
+        _statusTimer.Stop();
+        IsEnabled = false;
+        await Dispatcher.Yield(DispatcherPriority.Background);
         try
         {
-            var result = await _uninstallService.UninstallAsync(application);
-            SetStatus(result.Message, !result.Started && !result.Cancelled);
-            if (!result.Started)
-            {
-                MessageBox.Show(this, result.Message, "卸载未执行", MessageBoxButton.OK,
-                    result.Cancelled ? MessageBoxImage.Information : MessageBoxImage.Warning);
-                return;
-            }
-
-            var scanConfirmation = new ConfirmationWindow(
-                "官方卸载已结束", "是否检查剩余文件和注册表项？",
-                directoryMatch?.CanUseSelectedDirectoryForCleanup == true
-                    ? "扫描是只读操作。所选目录会作为高风险候选展示且默认不选中，不会自动清理。"
-                    : "扫描是只读操作。找到的项目会先展示，不会自动清理。",
-                null, "开始扫描")
-            { Owner = this };
-            var verifiedDirectory = directoryMatch?.CanUseSelectedDirectoryForCleanup == true
-                ? directoryMatch.DirectoryPath
-                : null;
-            if (scanConfirmation.ShowDialog() == true) await ScanAndReviewAsync(application, verifiedDirectory);
-            await RefreshApplicationsAsync();
-        }
-        finally
-        {
-            SetBusy(false);
-            if (SelectedApplication is not null) UninstallButton.IsEnabled = SelectedApplication.CanUninstall;
-        }
-    }
-
-    private async void ScanButton_Click(object sender, RoutedEventArgs e)
-    {
-        var application = SelectedApplication;
-        if (application is not null) await ScanAndReviewAsync(application);
-    }
-
-    private async Task ScanAndReviewAsync(InstalledApplication application, string? verifiedInstallDirectory = null)
-    {
-        SetBusy(true, $"正在扫描 {application.DisplayName} 的可确认残留…");
-        ScanButton.IsEnabled = false;
-        try
-        {
-            var candidates = await _residueScanner.ScanAsync(application, verifiedInstallDirectory);
-            if (candidates.Count == 0)
-            {
-                SetStatus("未发现可明确归属的残留");
-                MessageBox.Show(this,
-                    "没有发现名称和来源均能明确归属于该应用的残留。Kill 不会猜测或扩大扫描范围。",
-                    "扫描完成", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var review = new CleanupReviewWindow(application.DisplayName, candidates) { Owner = this };
-            if (review.ShowDialog() != true || review.SelectedCandidates.Count == 0)
-            {
-                SetStatus($"扫描完成，发现 {candidates.Count} 个候选项；未执行清理");
-                return;
-            }
-
-            var isPermanent = review.SelectedMode == CleanupMode.PermanentDelete;
-            SetBusy(true, isPermanent ? "正在直接清理所选残留…" : "正在创建备份并移入隔离区…");
-            var result = isPermanent
-                ? await _cleanupCoordinator.PermanentDeleteAsync(application.DisplayName, review.SelectedCandidates)
-                : await _cleanupCoordinator.CleanAsync(application.DisplayName, review.SelectedCandidates);
-            SetStatus(result.Message, !result.Success);
-            var details = result.Errors.Count == 0 ? result.Message : result.Message + "\n\n" + string.Join("\n", result.Errors.Take(5));
-            MessageBox.Show(this, details, result.Success ? (isPermanent ? "直接清理完成" : "清理完成") : "清理结果",
-                MessageBoxButton.OK, result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            var cleanupTasks = _views.Values.OfType<WorkspaceView>().Select(view => view.WhenIdle).ToList();
+            if (BehaviorMonitor is { } behavior) cleanupTasks.Add(behavior.ShutdownAsync());
+            if (ResourceMonitor is { } resources) cleanupTasks.Add(resources.ShutdownAsync());
+            await Task.WhenAll(cleanupTasks);
+            _allowClose = true;
+            Close();
         }
         catch (Exception exception)
         {
-            SetStatus("残留扫描失败", true);
-            MessageBox.Show(this, exception.Message, "扫描失败", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-        finally
-        {
-            ScanButton.IsEnabled = true;
-            SetBusy(false);
+            _closing = false;
+            IsEnabled = true;
+            _statusTimer.Start();
+            MessageBox.Show(this, "监控尚未完整停止，请重试关闭。\n\n" + exception.Message,
+                "关闭未完成", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
-    private void HistoryButton_Click(object sender, RoutedEventArgs e) =>
-        new HistoryWindow(_cleanupCoordinator) { Owner = this }.ShowDialog();
-
-    private void ServicesButton_Click(object sender, RoutedEventArgs e) =>
-        new ServiceManagementWindow { Owner = this }.ShowDialog();
-
-    private void ResourceMonitorButton_Click(object sender, RoutedEventArgs e) =>
-        new ResourceMonitorWindow { Owner = this }.ShowDialog();
-
-    private void SetBusy(bool isBusy, string? message = null)
+    internal async Task CloseForDiagnosticsAsync()
     {
-        BusyProgress.Visibility = isBusy ? Visibility.Visible : Visibility.Collapsed;
-        RefreshButton.IsEnabled = !isBusy;
-        HistoryButton.IsEnabled = !isBusy;
-        ServicesButton.IsEnabled = !isBusy;
-        ResourceMonitorButton.IsEnabled = !isBusy;
-        IdentifyDirectoryButton.IsEnabled = !isBusy;
-        if (message is not null) SetStatus(message);
-    }
-
-    private void SetStatus(string message, bool isError = false)
-    {
-        StatusText.Text = message;
-        StatusDot.Fill = isError ? Brushes.IndianRed : (Brush)FindResource("TealBrush");
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Closed += (_, _) => completion.TrySetResult();
+        Close();
+        await completion.Task.WaitAsync(TimeSpan.FromSeconds(30));
     }
 }

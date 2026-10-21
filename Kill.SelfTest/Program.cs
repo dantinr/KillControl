@@ -5,6 +5,69 @@ using Microsoft.Data.Sqlite;
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("工作进程拒绝目录穿越与外部请求", () =>
+    {
+        foreach (var path in new[] { @"C:\outside.json", Path.Combine(KillPaths.TempRoot, "..", "outside.json"), Path.Combine(KillPaths.TempRoot, "nested", "request.json"), Path.Combine(KillPaths.TempRoot, "request.json:stream") })
+            ExpectRejected(() => WorkerInputPolicy.ValidateTemporaryPath(path));
+        WorkerInputPolicy.ValidateTemporaryPath(Path.Combine(KillPaths.TempRoot, "synthetic-request.json"));
+        return Task.CompletedTask;
+    }),
+    ("工作进程拒绝操作和候选标识注入", () =>
+    {
+        ExpectRejected(() => WorkerInputPolicy.ValidateOperationId(@"..\outside"));
+        ExpectRejected(() => WorkerInputPolicy.ValidateItem(new CleanupCandidateDto
+        {
+            Id = @"..\outside", Kind = CleanupItemKind.File, Target = @"C:\Test\example.txt", Reason = "test", Risk = RiskLevel.Low
+        }));
+        WorkerInputPolicy.ValidateOperationId("20261021-120000-0123456789abcdef0123456789abcdef");
+        return Task.CompletedTask;
+    }),
+    ("恢复清单必须匹配历史目录和操作标识", () =>
+    {
+        const string operation = "20261021-120000-0123456789abcdef0123456789abcdef";
+        WorkerInputPolicy.ValidateManifestPath(Path.Combine(KillPaths.HistoryRoot, operation + ".json"), operation);
+        ExpectRejected(() => WorkerInputPolicy.ValidateManifestPath(Path.Combine(KillPaths.HistoryRoot, "other.json"), operation));
+        ExpectRejected(() => WorkerInputPolicy.ValidateManifestPath(Path.Combine(KillPaths.TempRoot, operation + ".json"), operation));
+        return Task.CompletedTask;
+    }),
+    ("恢复拒绝范围外备份和受保护目标", () =>
+    {
+        const string operation = "20261021-120000-0123456789abcdef0123456789abcdef";
+        ExpectRejected(() => WorkerInputPolicy.ValidateRestoreEntry(operation, new OperationEntry
+        {
+            Kind = CleanupItemKind.File, OriginalTarget = Path.Combine(Environment.SystemDirectory, "example.exe"), BackupTarget = @"C:\other\backup.exe"
+        }));
+        ExpectRejected(() => WorkerInputPolicy.ValidateRestoreEntry(operation, new OperationEntry
+        {
+            Kind = CleanupItemKind.RegistryKey, OriginalTarget = @"HKCU\SOFTWARE\Example", BackupTarget = Path.Combine(KillPaths.TempRoot, "0123456789abcdef0123456789abcdef.reg")
+        }));
+        return Task.CompletedTask;
+    }),
+    ("注册表恢复拒绝备份内的越界键", async () =>
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "Kill-registry-backup-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            string backup = Path.Combine(directory, "test.reg");
+            await File.WriteAllTextAsync(backup, "Windows Registry Editor Version 5.00\n[HKEY_CURRENT_USER\\SOFTWARE\\Example Product]\n\"Value\"=\"test\"\n", System.Text.Encoding.Unicode);
+            WorkerInputPolicy.ValidateRegistryBackup(backup, @"HKCU\SOFTWARE\Example Product");
+            await File.AppendAllTextAsync(backup, "[HKEY_CURRENT_USER\\SOFTWARE\\Another Product]\n", System.Text.Encoding.Unicode);
+            ExpectRejected(() => WorkerInputPolicy.ValidateRegistryBackup(backup, @"HKCU\SOFTWARE\Example Product"));
+        }
+        finally { Directory.Delete(directory, true); }
+    }),
+    ("注册表工作进程保护共享及系统配置", () =>
+    {
+        foreach (string target in new[] { @"HKLM\SOFTWARE\Microsoft", @"HKCU\SOFTWARE\Classes\Example", @"HKLM\SOFTWARE\Policies\Example", @"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" })
+        {
+            bool rejected = false;
+            try { CleanupWorker.ParseAndValidateRegistryTarget(target); }
+            catch (InvalidOperationException) { rejected = true; }
+            if (!rejected) throw new InvalidOperationException("共享配置未被保护：" + target);
+        }
+        return Task.CompletedTask;
+    }),
     ("保护 Windows 目录", () => CheckAsync(
         SafetyPolicy.IsProtectedInstallLocation(Environment.GetFolderPath(Environment.SpecialFolder.Windows)),
         "Windows 目录必须被标记为受保护")),
@@ -450,6 +513,14 @@ static InstalledApplication TestApplication(string name, string installLocation 
     Scope = InstallScope.AllUsers,
     CanUninstall = true
 };
+
+static void ExpectRejected(Action action)
+{
+    try { action(); }
+    catch (InvalidDataException) { return; }
+    throw new InvalidOperationException("非法工作进程输入未被拒绝。");
+}
+
 
 sealed class NonPumpingSynchronizationContext : SynchronizationContext
 {

@@ -15,9 +15,18 @@ Kill Control 使用下列第三方组件。Kill Control 自身采用 Apache Lice
 | SQLitePCLRaw.lib.e_sqlite3 | 2.1.12 | 传递 NuGet 依赖，包含原生 SQLite 库 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC | [SQLitePCL.raw v2.1.12](https://github.com/ericsink/SQLitePCL.raw/tree/v2.1.12) |
 | SQLitePCLRaw.provider.e_sqlite3 | 2.1.12 | 传递 NuGet 依赖 | Apache-2.0 | Copyright 2014-2024 SourceGear, LLC | [SQLitePCL.raw v2.1.12](https://github.com/ericsink/SQLitePCL.raw/tree/v2.1.12) |
 | SQLite | 3.53.3 | 由 SQLitePCLRaw.lib.e_sqlite3 2.1.12 捆绑的原生库 | Public Domain（公有领域） | SQLite authors | [SQLite 版权说明](https://www.sqlite.org/copyright.html) |
-| Microsoft .NET Runtime 和 WPF | 10.0.11（当前构建环境） | 目标框架；自包含发布时随程序分发 | MIT，并包含各自的第三方声明 | .NET Foundation and Contributors | [.NET Runtime](https://github.com/dotnet/runtime)、[WPF](https://github.com/dotnet/wpf) |
+| Microsoft .NET Runtime 和 WPF | 10.0.11（统一自包含发布运行时） | 目标框架；自包含发布时随程序分发 | MIT，并包含各自的第三方声明 | .NET Foundation and Contributors | [.NET Runtime](https://github.com/dotnet/runtime)、[WPF](https://github.com/dotnet/wpf) |
+| Microsoft.Diagnostics.NETCore.Client | 0.2.510501 | 传递 NuGet 依赖 | MIT | Microsoft Corporation；.NET Foundation and Contributors | [上游项目](https://github.com/dotnet/diagnostics) |
+| Microsoft.Diagnostics.Tracing.TraceEvent | 3.2.8 | 直接 NuGet 依赖 | MIT | Microsoft Corporation；.NET Foundation and Contributors | [上游项目](https://github.com/Microsoft/perfview) |
+| Microsoft.Extensions.DependencyInjection | 6.0.0 | 传递 NuGet 依赖 | MIT | Microsoft Corporation；.NET Foundation and Contributors | [上游项目](https://github.com/dotnet/runtime) |
+| Microsoft.Extensions.DependencyInjection.Abstractions | 6.0.0 | 传递 NuGet 依赖 | MIT | Microsoft Corporation；.NET Foundation and Contributors | [上游项目](https://github.com/dotnet/runtime) |
+| Microsoft.Extensions.Logging | 6.0.0 | 传递 NuGet 依赖 | MIT | Microsoft Corporation；.NET Foundation and Contributors | [上游项目](https://github.com/dotnet/runtime) |
+| Microsoft.Extensions.Logging.Abstractions | 6.0.0 | 传递 NuGet 依赖 | MIT | Microsoft Corporation；.NET Foundation and Contributors | [上游项目](https://github.com/dotnet/runtime) |
+| Microsoft.Extensions.Options | 6.0.0 | 传递 NuGet 依赖 | MIT | Microsoft Corporation；.NET Foundation and Contributors | [上游项目](https://github.com/dotnet/runtime) |
+| Microsoft.Extensions.Primitives | 6.0.0 | 传递 NuGet 依赖 | MIT | Microsoft Corporation；.NET Foundation and Contributors | [上游项目](https://github.com/dotnet/runtime) |
+| System.Reflection.TypeExtensions | 4.7.0 | 传递 NuGet 依赖 | MIT | Microsoft Corporation；.NET Foundation and Contributors | [上游项目](https://github.com/dotnet/corefx) |
 
-依赖版本以 `Kill/Kill.csproj` 及还原后的依赖图为准。更换 SDK 或发布运行时后，.NET Runtime/WPF 的实际补丁版本可能变化，发布前应同步复核本文件及上游第三方声明。
+依赖版本以 `Kill/Kill.csproj` 与 `BehaviorMonitor/Core/ProcessSentinel.Core.csproj` 及还原后的依赖图为准。更换 SDK 或发布运行时后，.NET Runtime/WPF 的实际补丁版本可能变化，发布前应同步复核本文件及上游第三方声明。
 
 ## Apache License 2.0 组件
 
@@ -80,3 +89,7 @@ SOFTWARE.
 `SQLitePCLRaw.lib.e_sqlite3` 2.1.12 随 Windows 发布产物提供 SQLite 3.53.3 原生库。SQLite 作者已将其可交付代码和文档奉献给公有领域，允许任何人出于任何目的复制、修改、发布、使用、编译、销售或分发。
 
 官方权利声明：[SQLite Is Public Domain](https://www.sqlite.org/copyright.html)
+
+## 行为监控模块
+
+行为监控从自用 ProcessSentinel 0.1.4 源码迁入，产品版本统一由根 VERSION 管理。TraceEvent 3.2.8 包同时分发 Microsoft.Diagnostics.FastSerialization、Dia2Lib、TraceReloggerLib 及包内原生跟踪组件，继续适用该包的 Microsoft MIT 声明。上述表格覆盖在 .NET 10 下实际解析到的 NuGet 依赖；由目标框架满足的依赖随统一 .NET 运行时声明分发。

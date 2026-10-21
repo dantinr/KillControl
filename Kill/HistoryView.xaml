@@ -1,8 +1,8 @@
-<Window x:Class="Kill.HistoryWindow"
+<local:WorkspaceView x:Class="Kill.HistoryView"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:local="clr-namespace:Kill"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="隔离记录 - Kill" Width="820" Height="540" MinWidth="700" MinHeight="460"
-        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -54,18 +54,17 @@
 
         <Border Grid.Row="2" Padding="22,14" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
             <Grid>
-                <Button Style="{StaticResource SecondaryButton}" Click="OpenFolderButton_Click">
+                <Button Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Click="OpenFolderButton_Click">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons" FontSize="15" Margin="0,0,7,0" />
                         <TextBlock Text="打开隔离目录" />
                     </StackPanel>
                 </Button>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Style="{StaticResource SecondaryButton}" Content="关闭" Margin="0,0,9,0" IsCancel="True" />
                     <Button x:Name="RestoreButton" Style="{StaticResource PrimaryButton}" Content="恢复所选记录"
                             Click="RestoreButton_Click" IsEnabled="False" />
                 </StackPanel>
             </Grid>
         </Border>
     </Grid>
-</Window>
+</local:WorkspaceView>

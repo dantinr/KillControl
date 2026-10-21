@@ -9,9 +9,9 @@ using Kill.Services;
 
 namespace Kill;
 
-public partial class ResourceMonitorWindow : Window
+public partial class ResourceMonitorView : WorkspaceView
 {
-    private readonly ResourceMonitorRepository _repository = new();
+    private readonly ResourceMonitorRepository _repository;
     private readonly SemaphoreSlim _stopGate = new(1, 1);
     private readonly CancellationTokenSource _windowCancellation = new();
     private CancellationTokenSource? _monitorCancellation;
@@ -27,21 +27,31 @@ public partial class ResourceMonitorWindow : Window
     private bool _storageAvailable;
     private bool _isBusy;
     private bool _isClosing;
-    private bool _allowClose;
+    private Task? _shutdownTask;
 
-    public ResourceMonitorWindow()
+    public ResourceMonitorView(string? databasePath = null)
     {
+        _repository = new ResourceMonitorRepository(databasePath);
         InitializeComponent();
-        Title = $"Kill Control {ProductInfo.DisplayVersion} - 资源监控";
         DataContext = this;
     }
 
     public ObservableCollection<ResourceSample> Samples { get; } = [];
     public ObservableCollection<ProcessResourceSample> TopProcesses { get; } = [];
 
-    private bool IsMonitoring => _monitorCancellation is not null;
+    public bool IsMonitoring => _monitorCancellation is not null;
 
-    private async void Window_Loaded(object sender, RoutedEventArgs e)
+    internal Task InitializationTask { get; private set; } = Task.CompletedTask;
+    private bool _initialized;
+
+    private void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (_initialized) return;
+        _initialized = true;
+        InitializationTask = InitializeAsync();
+    }
+
+    private async Task InitializeAsync()
     {
         DatabasePathText.Text = _repository.DatabasePath;
         DatabasePathText.ToolTip = _repository.DatabasePath;
@@ -65,7 +75,7 @@ public partial class ResourceMonitorWindow : Window
         catch (Exception exception)
         {
             SetStatus("无法创建资源监控数据库", true);
-            MessageBox.Show(this,
+            MessageBox.Show(HostWindow,
                 $"Kill Control 无法在程序目录创建 data 文件夹。请将程序移动到当前用户可写的目录后重试。\n\n{exception.Message}",
                 "数据库不可用", MessageBoxButton.OK, MessageBoxImage.Error);
         }
@@ -104,7 +114,7 @@ public partial class ResourceMonitorWindow : Window
         var metrics = GetSelectedMetrics();
         if (metrics == ResourceMetricSelection.None)
         {
-            MessageBox.Show(this, "请至少选择一个监控项目。", "没有监控项目",
+            MessageBox.Show(HostWindow, "请至少选择一个监控项目。", "没有监控项目",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -142,7 +152,7 @@ public partial class ResourceMonitorWindow : Window
             if (!_isClosing)
             {
                 SetStatus("无法启动资源监控", true);
-                MessageBox.Show(this, exception.Message, "启动失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(HostWindow, exception.Message, "启动失败", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         finally
@@ -293,7 +303,7 @@ public partial class ResourceMonitorWindow : Window
     {
         if (await StopMonitoringAsync("监控因采样或写入失败而停止", sessionId, monitorCancellation) &&
             !_isClosing)
-            MessageBox.Show(this, exception.Message, "资源监控已停止", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(HostWindow, exception.Message, "资源监控已停止", MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private void DisplaySample(ResourceSample sample)
@@ -416,7 +426,7 @@ public partial class ResourceMonitorWindow : Window
             "确认清空历史数据", "永久删除全部资源监控历史数据？",
             "这会删除 SQLite 数据库中的全部监控会话和采样记录，Kill Control 不提供恢复功能。数据库文件和表结构会保留。",
             "清空", "清空历史数据", "确认文字")
-        { Owner = this };
+        { Owner = HostWindow };
         if (confirmation.ShowDialog() != true) return;
 
         SetBusy(true, "正在清空本地监控记录…");
@@ -439,7 +449,7 @@ public partial class ResourceMonitorWindow : Window
             if (!_isClosing)
             {
                 SetStatus("清空监控记录失败", true);
-                MessageBox.Show(this, exception.Message, "清空失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(HostWindow, exception.Message, "清空失败", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         finally
@@ -469,7 +479,7 @@ public partial class ResourceMonitorWindow : Window
         }
         catch (Exception exception)
         {
-            MessageBox.Show(this, exception.Message, "无法打开数据目录", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(HostWindow, exception.Message, "无法打开数据目录", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -576,38 +586,17 @@ public partial class ResourceMonitorWindow : Window
 
     private static string FormatDuration(TimeSpan duration) => $"{duration.TotalMinutes:0} 分钟";
 
-    private async void Window_Closing(object? sender, CancelEventArgs e)
-    {
-        if (_allowClose) return;
-        if (_isClosing)
-        {
-            e.Cancel = true;
-            return;
-        }
+    public Task StopFromShellAsync() => StopMonitoringAsync("监控已停止");
 
+    public Task ShutdownAsync() => _shutdownTask ??= CompleteShutdownAsync();
+
+    private async Task CompleteShutdownAsync()
+    {
         _isClosing = true;
         _windowCancellation.Cancel();
-        var startTask = _startTask;
-        var clearTask = _clearTask;
-        if (startTask is null && clearTask is null && !IsMonitoring)
-        {
-            _allowClose = true;
-            return;
-        }
-
-        e.Cancel = true;
-        if (startTask is not null)
-        {
-            try { await startTask; }
-            catch { }
-        }
-        if (clearTask is not null)
-        {
-            try { await clearTask; }
-            catch { }
-        }
-        if (IsMonitoring) await StopMonitoringAsync("窗口关闭，监控已停止");
-        _allowClose = true;
-        Close();
+        await InitializationTask;
+        if (_startTask is not null) await _startTask;
+        if (_clearTask is not null) await _clearTask;
+        if (IsMonitoring) await StopMonitoringAsync("软件退出，监控已停止");
     }
 }

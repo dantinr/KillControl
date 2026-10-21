@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <RuntimeFrameworkVersion Condition="'$(SelfContained)' == 'true'">10.0.11</RuntimeFrameworkVersion>
+  </PropertyGroup>
+</Project>

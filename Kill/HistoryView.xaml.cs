@@ -6,18 +6,18 @@ using Kill.Services;
 
 namespace Kill;
 
-public partial class HistoryWindow : Window
+public partial class HistoryView : WorkspaceView
 {
     private readonly CleanupCoordinator _coordinator;
 
-    public HistoryWindow(CleanupCoordinator coordinator)
+    public HistoryView(CleanupCoordinator coordinator)
     {
         InitializeComponent();
         _coordinator = coordinator;
         RefreshHistory();
     }
 
-    private void RefreshHistory()
+    public void RefreshHistory()
     {
         var rows = _coordinator.GetHistory().Select(item => new HistoryRow(item.Path, item.Manifest)).ToList();
         HistoryGrid.ItemsSource = rows;
@@ -38,22 +38,35 @@ public partial class HistoryWindow : Window
             "恢复隔离项目", $"恢复“{row.ApplicationName}”的隔离内容？",
             "恢复可能重新引入导致程序异常的旧设置。若原位置已有同名项目，Kill 会停止并保留现有数据。",
             row.ApplicationName, "确认恢复")
-        { Owner = this };
+        { Owner = HostWindow };
         if (confirmation.ShowDialog() != true) return;
 
         RestoreButton.IsEnabled = false;
-        var result = await _coordinator.RestoreAsync(row.ManifestPath);
-        var details = result.Errors.Count == 0 ? result.Message : result.Message + "\n\n" + string.Join("\n", result.Errors.Take(5));
-        MessageBox.Show(this, details, result.Success ? "恢复完成" : "恢复结果",
-            MessageBoxButton.OK, result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
-        RefreshHistory();
+        SetPendingOperation(true);
+        try
+        {
+            var result = await _coordinator.RestoreAsync(row.ManifestPath);
+            var details = result.Errors.Count == 0 ? result.Message : result.Message + "\n\n" + string.Join("\n", result.Errors.Take(5));
+            MessageBox.Show(HostWindow, details, result.Success ? "恢复完成" : "恢复结果",
+                MessageBoxButton.OK, result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(HostWindow, exception.Message, "恢复未完成", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            RefreshHistory();
+            SetPendingOperation(false);
+            RestoreButton.IsEnabled = SelectedRow is { CanRestore: true };
+        }
     }
 
     private void OpenFolderButton_Click(object sender, RoutedEventArgs e)
     {
         if (!Directory.Exists(KillPaths.CommonRoot))
         {
-            MessageBox.Show(this, "还没有创建隔离目录。", "隔离记录", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(HostWindow, "还没有创建隔离目录。", "隔离记录", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         Process.Start(new ProcessStartInfo { FileName = KillPaths.CommonRoot, UseShellExecute = true });

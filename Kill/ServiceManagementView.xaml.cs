@@ -10,7 +10,7 @@ using Kill.Services;
 
 namespace Kill;
 
-public partial class ServiceManagementWindow : Window
+public partial class ServiceManagementView : WorkspaceView
 {
     private readonly ServiceDiscoveryService _discoveryService = new();
     private readonly ServiceActionCoordinator _actionCoordinator = new();
@@ -19,10 +19,9 @@ public partial class ServiceManagementWindow : Window
     private CancellationTokenSource? _refreshCancellation;
     private bool _isBusy;
 
-    public ServiceManagementWindow()
+    public ServiceManagementView()
     {
         InitializeComponent();
-        Title = $"Kill Control {ProductInfo.DisplayVersion} - 服务管理";
     }
 
     private ManagedService? SelectedService => ServicesList.SelectedItem as ManagedService;
@@ -58,7 +57,7 @@ public partial class ServiceManagementWindow : Window
         catch (Exception exception)
         {
             SetStatus("读取服务列表失败", true);
-            MessageBox.Show(this, exception.Message, "无法读取服务", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(HostWindow, exception.Message, "无法读取服务", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
@@ -126,7 +125,7 @@ public partial class ServiceManagementWindow : Window
             .FirstOrDefault(File.Exists);
         if (string.IsNullOrWhiteSpace(path))
         {
-            MessageBox.Show(this, "未找到可访问的宿主文件。服务命令仍显示在详情中。", "无法定位宿主",
+            MessageBox.Show(HostWindow, "未找到可访问的宿主文件。服务命令仍显示在详情中。", "无法定位宿主",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -144,7 +143,7 @@ public partial class ServiceManagementWindow : Window
         }
         catch (Exception exception)
         {
-            MessageBox.Show(this, exception.Message, "无法打开文件资源管理器", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(HostWindow, exception.Message, "无法打开文件资源管理器", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -156,7 +155,7 @@ public partial class ServiceManagementWindow : Window
             "确认禁止服务运行", $"停止并禁用“{service.DisplayName}”",
             "这会把服务的启动类型改为“已禁用”并尝试立即停止。依赖此服务的软件功能可能失效；可在 Windows 服务控制台中重新启用。",
             service.Name, "禁止运行", "服务名称")
-        { Owner = this };
+        { Owner = HostWindow };
         if (confirmation.ShowDialog() == true)
             await ExecuteActionAsync(service, ServiceActionKind.Disable);
     }
@@ -171,7 +170,7 @@ public partial class ServiceManagementWindow : Window
                 "确认移出黑名单", $"恢复“{service.DisplayName}”的原启动方式？",
                 "Kill 会恢复列入黑名单前记录的启动方式，但不会立即启动服务。软件之后可能再次启动它。",
                 null, "移出黑名单", "服务名称")
-            { Owner = this };
+            { Owner = HostWindow };
             if (confirmation.ShowDialog() == true)
                 await ExecuteActionAsync(service, ServiceActionKind.RemoveFromBlacklist);
             return;
@@ -181,7 +180,7 @@ public partial class ServiceManagementWindow : Window
             "确认列入黑名单", $"阻止“{service.DisplayName}”再次运行",
             "Kill 会记录当前启动方式，然后停止并禁用该服务。黑名单是本机持久记录；拥有管理员权限的软件仍可能重新创建或修改服务。",
             service.Name, "列入黑名单", "服务名称")
-        { Owner = this };
+        { Owner = HostWindow };
         if (addConfirmation.ShowDialog() == true)
             await ExecuteActionAsync(service, ServiceActionKind.AddToBlacklist);
     }
@@ -194,7 +193,7 @@ public partial class ServiceManagementWindow : Window
             "确认删除服务", $"永久删除“{service.DisplayName}”",
             "这是高风险操作。Kill 会先导出该服务的注册表配置，再请求 Windows 删除服务；这仍可能破坏所属软件，且备份只能用于人工恢复。建议优先使用“禁止运行”。",
             service.Name, "删除服务", "服务名称")
-        { Owner = this };
+        { Owner = HostWindow };
         if (confirmation.ShowDialog() == true)
             await ExecuteActionAsync(service, ServiceActionKind.Delete);
     }
@@ -208,14 +207,14 @@ public partial class ServiceManagementWindow : Window
             SetStatus(result.Message, !result.Success);
             var details = result.Message;
             if (!string.IsNullOrWhiteSpace(result.BackupPath)) details += $"\n\n服务配置备份：\n{result.BackupPath}";
-            MessageBox.Show(this, details, result.Success ? "服务操作完成" : "服务操作未完成",
+            MessageBox.Show(HostWindow, details, result.Success ? "服务操作完成" : "服务操作未完成",
                 MessageBoxButton.OK, result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
             await RefreshServicesAsync();
         }
         catch (Exception exception)
         {
             SetStatus("服务操作失败", true);
-            MessageBox.Show(this, exception.Message, "服务操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(HostWindow, exception.Message, "服务操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
@@ -225,6 +224,7 @@ public partial class ServiceManagementWindow : Window
 
     private void SetBusy(bool isBusy, string? message = null)
     {
+        SetPendingOperation(isBusy);
         _isBusy = isBusy;
         BusyProgress.Visibility = isBusy ? Visibility.Visible : Visibility.Collapsed;
         RefreshButton.IsEnabled = !isBusy;
