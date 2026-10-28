@@ -103,6 +103,31 @@ public partial class NetworkMonitorView
             "ended network durations freeze while active observations continue");
         Check(ConnectionsGrid.Columns.First(column => column.Header.ToString() == "累计发送").SortMemberPath == nameof(NetworkFlowRow.SentBytes),
             "network byte columns sort by numeric values");
+        ConnectionsGrid.SelectedItem = byId["tcp"];
+        var target = byId["udp"];
+        var originalFlow = target.Flow;
+        target.Flow = originalFlow with { Process = originalFlow.Process with { Path = Environment.ProcessPath! } };
+        ConnectionsGrid.ScrollIntoView(target);
+        ConnectionsGrid.UpdateLayout();
+        var container = (DataGridRow)ConnectionsGrid.ItemContainerGenerator.ContainerFromItem(target);
+        var menu = container.ContextMenu;
+        menu.PlacementTarget = container;
+        try
+        {
+            menu.IsOpen = true;
+            var item = (MenuItem)menu.Items[0];
+            string directory = Path.GetDirectoryName(Environment.ProcessPath!)!;
+            Check(item.Header.ToString() == "打开程序目录" && item.IsEnabled && Equals(item.Tag, directory)
+                && ReferenceEquals(ConnectionsGrid.SelectedItem, byId["tcp"]),
+                "network context menu targets the clicked row rather than a different selected process");
+            ApplySnapshot(latest! with { CapturedAtUtc = latest.CapturedAtUtc.AddSeconds(1) });
+            Check(Equals(item.Tag, directory), "network context menu preserves its directory while live rows refresh");
+            menu.IsOpen = false;
+            target.Flow = originalFlow with { Process = originalFlow.Process with { Path = "" } };
+            menu.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent));
+            Check(!item.IsEnabled && item.Tag is null, "network context menu disables missing paths without reusing the previous directory");
+        }
+        finally { menu.IsOpen = false; target.Flow = originalFlow; }
         view!.SortDescriptions.Clear();
         view.SortDescriptions.Add(new SortDescription(nameof(NetworkFlowRow.SendRate), ListSortDirection.Descending));
 

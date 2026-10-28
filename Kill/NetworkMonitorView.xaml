@@ -68,7 +68,7 @@
             <DataGrid x:Name="ConnectionsGrid" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False"
                       CanUserReorderColumns="True" SelectionMode="Single" EnableRowVirtualization="True"
                       HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="34" BorderBrush="{StaticResource BorderBrush}"
-                      SelectionChanged="ConnectionsGrid_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                      SelectionChanged="ConnectionsGrid_SelectionChanged" LoadingRow="ConnectionsGrid_LoadingRow" ScrollViewer.HorizontalScrollBarVisibility="Auto">
                 <DataGrid.RowStyle><Style TargetType="DataGridRow"><Setter Property="ToolTip" Value="{Binding Detail}" />
                     <Style.Triggers><DataTrigger Binding="{Binding IsEnded}" Value="True"><Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" /></DataTrigger></Style.Triggers>
                 </Style></DataGrid.RowStyle>

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -194,6 +195,53 @@ public partial class NetworkMonitorView : WorkspaceView
     }
 
     private void ConnectionsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateDetails();
+
+    private void ConnectionsGrid_LoadingRow(object sender, DataGridRowEventArgs e)
+    {
+        var item = new MenuItem { Header = "打开程序目录" };
+        item.Click += OpenProgramDirectory_Click;
+        var menu = new ContextMenu();
+        menu.Items.Add(item);
+        menu.Opened += ProcessContextMenu_Opened;
+        e.Row.ContextMenu = menu;
+    }
+
+    private void ProcessContextMenu_Opened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu menu || menu.Items[0] is not MenuItem item) return;
+        string? directory = null;
+        if (menu.PlacementTarget is DataGridRow { Item: NetworkFlowRow row })
+        {
+            try
+            {
+                string path = row.Flow.Process.Path;
+                if (!string.IsNullOrWhiteSpace(path) && Path.IsPathFullyQualified(path))
+                    directory = Path.GetDirectoryName(path);
+            }
+            catch (ArgumentException) { }
+        }
+        item.Tag = directory;
+        item.IsEnabled = directory is not null && Directory.Exists(directory);
+        item.ToolTip = item.IsEnabled ? directory : "无法读取进程路径，或程序目录已不存在";
+    }
+
+    private void OpenProgramDirectory_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string directory }) return;
+        try
+        {
+            if (!Directory.Exists(directory)) throw new DirectoryNotFoundException("程序目录已不存在或无法访问。");
+            var start = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"))
+            { UseShellExecute = true };
+            start.ArgumentList.Add(directory);
+            Process.Start(start);
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(HostWindow, "无法打开程序目录：" + exception.Message, "打开程序目录", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private NetworkHistoryProcessKey? SelectedHistoryProcess => ConnectionsGrid.SelectedItem is NetworkFlowRow row && displayedSessionId is not null
         ? new(displayedSessionId, row.Flow.Process.Id, row.Flow.Process.StartTimeUtcTicks) : null;
     private async void HistoryButton_Click(object sender, RoutedEventArgs e)
